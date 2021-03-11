@@ -1,0 +1,43 @@
+name: Check for license changes
+
+on: [pull_request]
+
+env:
+  GOPATH: ${{ github.workspace }}
+  GOBIN: ${{ github.workspace }}/bin
+defaults:
+  run:
+    working-directory: ${{ env.GOPATH }}/src/github.com/Kong/
+jobs:
+  licenses:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Setup go
+      uses: actions/setup-go@v2
+      with:
+        go-version: '^1.15'
+    - name: Cache Go modules
+      uses: actions/cache@v1
+      with:
+        path: ~/go/pkg/mod
+        key: ${{ runner.os }}-build-codegen-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go
+    - name: Install go-licenses
+      run: go get github.com/google/go-licenses
+    - name: Checkout target
+      uses: actions/checkout@v2
+      with:
+        ref: ${{ github.event.pull_request.base.ref }}
+        path: ${{ env.GOPATH }}/src/github.com/Kong/
+    - name: Generate target license report
+      run: go-licenses csv ./cli/ingress-controller/ > /tmp/target_licenses.csv
+    - name: Checkout PR
+      uses: actions/checkout@v2
+      with:
+        path: ${{ env.GOPATH }}/src/github.com/Kong/
+    - name: Generate PR license report
+      run: go-licenses csv ./cli/ingress-controller/ > /tmp/pr_licenses.csv
+    - name: stub
+      run: cat /tmp/pr_licenses.csv
+
