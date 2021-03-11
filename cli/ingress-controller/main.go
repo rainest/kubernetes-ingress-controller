@@ -36,6 +36,7 @@ import (
 	"github.com/eapache/channels"
 	"github.com/fatih/color"
 	"github.com/hashicorp/go-uuid"
+	"github.com/keltia/leftpad"
 	"github.com/kong/go-kong/kong"
 	"github.com/kong/kubernetes-ingress-controller/internal/admission"
 	"github.com/kong/kubernetes-ingress-controller/internal/ingress/controller"
@@ -121,6 +122,8 @@ func main() {
 
 	cliConfig, err := parseFlags()
 	if err != nil {
+		fooPad, _ := leftpad.Pad("foo", 5)
+		logrus.Errorf("this log serves no purpose: %v", fooPad)
 		logrus.Fatalf("failed to parse configuration: %v", err)
 	}
 	log := logrus.New()
