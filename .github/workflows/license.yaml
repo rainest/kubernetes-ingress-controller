@@ -1,4 +1,4 @@
-name: Check for license changes
+name: 'Check for license changes'
 
 on: [pull_request]
 
