@@ -33,7 +33,7 @@ jobs:
         ref: ${{ github.event.pull_request.base.ref }}
         path: ${{ github.workspace }}/src/github.com/Kong/kubernetes-ingress-controller
     - name: Generate target license report
-      run: go-licenses csv ./cli/ingress-controller/ > ${{ github.workspace }}/target_licenses.csv
+      run: go-licenses csv ./cli/ingress-controller/ | sort > ${{ github.workspace }}/target_licenses.csv
       working-directory: ${{ github.workspace }}/src/github.com/Kong/kubernetes-ingress-controller
     - name: Clear target
       run: rm -rf ${{ github.workspace }}/src/github.com/Kong/kubernetes-ingress-controller
@@ -42,7 +42,7 @@ jobs:
       with:
         path: ${{ github.workspace }}/src/github.com/Kong/kubernetes-ingress-controller
     - name: Generate PR license report
-      run: go-licenses csv ./cli/ingress-controller/ > ${{ github.workspace }}/pr_licenses.csv
+      run: go-licenses csv ./cli/ingress-controller/ | sort > ${{ github.workspace }}/pr_licenses.csv
       working-directory: ${{ github.workspace }}/src/github.com/Kong/kubernetes-ingress-controller
     - name: Compare license reports
       id: compare_reports
