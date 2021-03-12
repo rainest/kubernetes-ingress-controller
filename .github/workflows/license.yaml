@@ -35,12 +35,28 @@ jobs:
     - name: Generate target license report
       run: go-licenses csv ./cli/ingress-controller/ > ${{ github.workspace }}/target_licenses.csv
       working-directory: ${{ github.workspace }}/src/github.com/Kong/kubernetes-ingress-controller
-    #- name: Checkout PR
-    #  uses: actions/checkout@v2
-    #  with:
-    #    path: /src/github.com/Kong/
-    #- name: Generate PR license report
-    #  run: go-licenses csv ./cli/ingress-controller/ > /tmp/pr_licenses.csv
-    - name: stub
-      run: cat ${{ github.workspace }}/target_licenses.csv
+    - name: Clear target
+      run: rm -rf ${{ github.workspace }}/src/github.com/Kong/kubernetes-ingress-controller
+    - name: Checkout PR
+      uses: actions/checkout@v2
+      with:
+        path: ${{ github.workspace }}/src/github.com/Kong/kubernetes-ingress-controller
+    - name: Generate PR license report
+      run: go-licenses csv ./cli/ingress-controller/ > ${{ github.workspace }}/pr_licenses.csv
+      working-directory: ${{ github.workspace }}/src/github.com/Kong/kubernetes-ingress-controller
+    - name: Compare license reports
+      id: compare_reports
+      run: echo "::set-output name=diff::$(diff -u target_licenses.csv pr_licenses.csv)"
+    - name: Update PR if different
+      uses: actions/github-script@v3
+      if: ${{ steps.compare_reports.outputs.diff != '' }}
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+            github.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: ${{ join('Licenses differ between PR and base:\n', steps.compare_reports.outputs.diff) }}
+            })
 
