@@ -26,7 +26,7 @@ jobs:
     - name: Install go-licenses
       run: go get github.com/google/go-licenses
     - name: Create source location
-      run: mkdir /src/github.com/Kong/
+      run: mkdir -p /src/github.com/Kong/
     - name: Checkout target
       uses: actions/checkout@v2
       with:
