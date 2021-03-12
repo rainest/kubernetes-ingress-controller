@@ -25,19 +25,22 @@ jobs:
           ${{ runner.os }}-go
     - name: Install go-licenses
       run: go get github.com/google/go-licenses
+    - name: Create source location
+      run: mkdir /src/github.com/Kong/
     - name: Checkout target
       uses: actions/checkout@v2
       with:
         ref: ${{ github.event.pull_request.base.ref }}
-        path: /src/github.com/Kong/
+        path: /src/github.com/Kong/kubernetes-ingress-controller
     - name: Generate target license report
-      run: go-licenses csv ./cli/ingress-controller/ > /tmp/target_licenses.csv
-    - name: Checkout PR
-      uses: actions/checkout@v2
-      with:
-        path: /src/github.com/Kong/
-    - name: Generate PR license report
-      run: go-licenses csv ./cli/ingress-controller/ > /tmp/pr_licenses.csv
+      run: go-licenses csv ./cli/ingress-controller/ > /target_licenses.csv
+      working-directory: /src/github.com/Kong/kubernetes-ingress-controller
+    #- name: Checkout PR
+    #  uses: actions/checkout@v2
+    #  with:
+    #    path: /src/github.com/Kong/
+    #- name: Generate PR license report
+    #  run: go-licenses csv ./cli/ingress-controller/ > /tmp/pr_licenses.csv
     - name: stub
-      run: cat /tmp/pr_licenses.csv
+      run: cat /target_licenses.csv
 
