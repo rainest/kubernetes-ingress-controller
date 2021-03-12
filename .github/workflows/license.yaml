@@ -2,9 +2,9 @@ name: 'Check for license changes'
 
 on: [pull_request]
 
-defaults:
-  run:
-    working-directory: ${{ env.GOPATH }}/src/github.com/Kong/
+#defaults:
+  #run:
+  #  working-directory: ${{ env.GOPATH }}/src/github.com/Kong/
 jobs:
   licenses:
     env:
