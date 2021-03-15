@@ -41,7 +41,9 @@ jobs:
       id: compare_reports
       run: |
         DIFFOUT=$(diff -u target_licenses.csv pr_licenses.csv)
-        echo "::set-output name=diff::${DIFFOUT//$'\n'/'%0A'}"
+        DIFFOUT="${DIFFOUT//$'\n'/'%0A'}"
+        DIFFOUT="${DIFFOUT//$'\r'/'%0D'}"
+        echo "::set-output name=diff::$DIFFOUT"
     - name: Update PR if different
       uses: actions/github-script@v3
       env:
