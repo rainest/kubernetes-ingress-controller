@@ -59,6 +59,6 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: 'Licenses differ between PR and base:\n' + process.env.DIFF_OUTPUT }}
+              body: 'Licenses differ between PR and base:\n' + process.env.DIFF_OUTPUT
             })
 
