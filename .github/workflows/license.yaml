@@ -49,6 +49,8 @@ jobs:
       run: echo "::set-output name=diff::$(diff -u target_licenses.csv pr_licenses.csv)"
     - name: Update PR if different
       uses: actions/github-script@v3
+      env:
+        DIFF_OUTPUT: ${{ steps.compare_reports.outputs.diff }}
       if: ${{ steps.compare_reports.outputs.diff != '' }}
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -57,6 +59,6 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: ${{ join('Licenses differ between PR and base:\n', steps.compare_reports.outputs.diff) }}
+              body: 'Licenses differ between PR and base:\n' + process.env.DIFF_OUTPUT }}
             })
 
