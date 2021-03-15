@@ -16,13 +16,6 @@ jobs:
       uses: actions/setup-go@v2
       with:
         go-version: '^1.15'
-    - name: Cache Go modules
-      uses: actions/cache@v1
-      with:
-        path: ~/go/pkg/mod
-        key: ${{ runner.os }}-build-codegen-${{ hashFiles('**/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go
     - name: Install go-licenses
       run: go get github.com/google/go-licenses
     - name: Create source location
@@ -46,7 +39,9 @@ jobs:
       working-directory: ${{ github.workspace }}/src/github.com/Kong/kubernetes-ingress-controller
     - name: Compare license reports
       id: compare_reports
-      run: echo "::set-output name=diff::$(diff -u target_licenses.csv pr_licenses.csv)"
+      run: |
+        DIFFOUT=$(diff -u target_licenses.csv pr_licenses.csv)
+        echo "::set-output name=diff::${DIFFOUT//$'\n'/'%0A'}"
     - name: Update PR if different
       uses: actions/github-script@v3
       env:
