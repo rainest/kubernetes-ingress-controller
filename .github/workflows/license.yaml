@@ -53,10 +53,12 @@ jobs:
       run: |
         echo "foo\n\bar" > target_licenses.csv
         echo "foo\n\bar\nbaz" > pr_licenses.csv
+        cat target_licenses.csv pr_licenses.csv
     - name: Compare license reports
       id: compare_reports
       run: |
         set -x
+        cat target_licenses.csv pr_licenses.csv
         echo 'DIFF_OUT<<EOF' >> wat.txt
         diff -u target_licenses.csv pr_licenses.csv >> wat.txt
         echo 'EOF' >> wat.txt
