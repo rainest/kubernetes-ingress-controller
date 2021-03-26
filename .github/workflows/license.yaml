@@ -26,12 +26,13 @@ jobs:
     - name: Generate target license report
       run: go-licenses csv ./cli/ingress-controller/ | sort > ${{ github.workspace }}/target_licenses.csv
       working-directory: src/github.com/Kong/kubernetes-ingress-controller
-    - name: Clear target
-      run: rm -rf src/github.com/Kong/kubernetes-ingress-controller
     - name: Checkout PR
-      uses: actions/checkout@v2
-      with:
-        path: src/github.com/Kong/kubernetes-ingress-controller
+      run: git checkout ${{ github.head_ref }}
+      working-directory: src/github.com/Kong/kubernetes-ingress-controller
+#   - name: Checkout PR
+#     uses: actions/checkout@v2
+#     with:
+#       path: src/github.com/Kong/kubernetes-ingress-controller
     - name: Generate PR license report
       run: go-licenses csv ./cli/ingress-controller/ | sort > ${{ github.workspace }}/pr_licenses.csv
       working-directory: src/github.com/Kong/kubernetes-ingress-controller
