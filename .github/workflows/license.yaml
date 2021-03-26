@@ -2,9 +2,6 @@ name: 'Check for license changes'
 
 on: [pull_request]
 
-#defaults:
-  #run:
-  #  working-directory: ${{ env.GOPATH }}/src/github.com/Kong/
 jobs:
   licenses:
     env:
@@ -19,29 +16,30 @@ jobs:
     - name: Install go-licenses
       run: go get github.com/google/go-licenses
     - name: Create source location
-      run: mkdir -p ${{ github.workspace }}/src/github.com/Kong/
+      run: mkdir -p src/github.com/Kong/
     - name: Checkout target
       uses: actions/checkout@v2
       with:
         ref: ${{ github.event.pull_request.base.ref }}
-        path: ${{ github.workspace }}/src/github.com/Kong/kubernetes-ingress-controller
+        path: src/github.com/Kong/kubernetes-ingress-controller
     - name: Generate target license report
       run: go-licenses csv ./cli/ingress-controller/ | sort > ${{ github.workspace }}/target_licenses.csv
-      working-directory: ${{ github.workspace }}/src/github.com/Kong/kubernetes-ingress-controller
+      working-directory: src/github.com/Kong/kubernetes-ingress-controller
     - name: Clear target
-      run: rm -rf ${{ github.workspace }}/src/github.com/Kong/kubernetes-ingress-controller
+      run: rm -rf src/github.com/Kong/kubernetes-ingress-controller
     - name: Checkout PR
       uses: actions/checkout@v2
       with:
-        path: ${{ github.workspace }}/src/github.com/Kong/kubernetes-ingress-controller
+        path: src/github.com/Kong/kubernetes-ingress-controller
     - name: Generate PR license report
       run: go-licenses csv ./cli/ingress-controller/ | sort > ${{ github.workspace }}/pr_licenses.csv
-      working-directory: ${{ github.workspace }}/src/github.com/Kong/kubernetes-ingress-controller
+      working-directory: src/github.com/Kong/kubernetes-ingress-controller
     - name: Compare license reports
       id: compare_reports
       run: |
         echo 'DIFF_OUT<<EOF' >> $GITHUB_ENV
         diff -u target_licenses.csv pr_licenses.csv >> $GITHUB_ENV
+        echo "\n" >> $GITHUB_ENV
         echo 'EOF' >> $GITHUB_ENV
         echo "::set-output name=diff::$DIFF_OUT"
     - name: Update PR if different
