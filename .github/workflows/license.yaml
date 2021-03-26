@@ -50,9 +50,7 @@ jobs:
 #       echo "::set-output name=diff::$DIFF_OUT"
     - name: Compare license reports
       id: compare_reports
-      run: |
-        diff -u target_licenses.csv pr_licenses.csv
-        echo "::set-output name=diff::$(diff -u target_licenses.csv pr_licenses.csv)"
+      run: echo "::set-output name=diff::$(diff -u target_licenses.csv pr_licenses.csv)"
     - name: Update PR if licenses differ
       uses: actions/github-script@v3
       env:
