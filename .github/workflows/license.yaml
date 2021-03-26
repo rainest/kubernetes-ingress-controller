@@ -57,12 +57,10 @@ jobs:
     - name: Compare license reports
       id: compare_reports
       run: |
-        set -x
-        cat ${{ github.workspace }}/target_licenses.csv ${{ github.workspace }}/pr_licenses.csv
-#       echo 'DIFF_OUT<<EOF' >> wat.txt
-#       diff -u ${{ github.workspace }}/target_licenses.csv ${{ github.workspace }}/pr_licenses.csv >> wat.txt
-#       echo 'EOF' >> wat.txt
-#       cat wat.txt
+        echo 'DIFF_OUT<<EOF' >> ${{ github.workspace }}/wat.txt
+        diff -u ${{ github.workspace }}/target_licenses.csv ${{ github.workspace }}/pr_licenses.csv >> ${{ github.workspace }}/wat.txt
+        echo 'EOF' >> ${{ github.workspace }}/wat.txt
+        cat ${{ github.workspace }}/wat.txt
     - name: Update PR if different
       uses: actions/github-script@v3
       env:
