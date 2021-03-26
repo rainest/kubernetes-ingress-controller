@@ -37,10 +37,9 @@ jobs:
     - name: Compare license reports
       id: compare_reports
       run: |
-        echo 'DIFF_OUT<<EOF' >> /tmp/wat
-        diff -u target_licenses.csv pr_licenses.csv >> /tmp/wat
-        echo 'EOF' >> /tmp/wat
-        cat /tmp/wat
+        echo 'JSON_RESPONSE<<EOF' >> $GITHUB_ENV
+        curl https://httpbin.org/json >> $GITHUB_ENV
+        echo 'EOF' >> $GITHUB_ENV
 #    - name: Compare license reports
 #      id: compare_reports
 #      run: |
