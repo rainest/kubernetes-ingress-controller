@@ -23,11 +23,12 @@ jobs:
       with:
         ref: ${{ github.event.pull_request.base.ref }}
         path: src/github.com/Kong/kubernetes-ingress-controller
+        fetch-depth: 0
     - name: Generate target license report
       run: go-licenses csv ./cli/ingress-controller/ | sort > ${{ github.workspace }}/target_licenses.csv
       working-directory: src/github.com/Kong/kubernetes-ingress-controller
     - name: Checkout PR
-      run: git checkout ${{ github.sha }}
+      run: git checkout ${{ github.head_ref }}
       working-directory: src/github.com/Kong/kubernetes-ingress-controller
 #   - name: Checkout PR
 #     uses: actions/checkout@v2
