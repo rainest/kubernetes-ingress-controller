@@ -37,23 +37,30 @@ jobs:
     - name: Compare license reports
       id: compare_reports
       run: |
-        echo 'DIFF_OUT<<EOF' >> $GITHUB_ENV
-        diff -u target_licenses.csv pr_licenses.csv >> $GITHUB_ENV
-        echo "\n" >> $GITHUB_ENV
-        echo 'EOF' >> $GITHUB_ENV
-        echo "::set-output name=diff::$DIFF_OUT"
-    - name: Update PR if different
-      uses: actions/github-script@v3
-      env:
-        DIFF_OUTPUT: ${{ steps.compare_reports.outputs.diff }}
-      if: ${{ steps.compare_reports.outputs.diff != '' }}
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        script: |
-            github.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: 'Licenses differ between PR and base:\n' + process.env.DIFF_OUTPUT
-            })
+        echo 'DIFF_OUT<<EOF' >> $TMP
+        diff -u target_licenses.csv pr_licenses.csv >> $TMP
+        echo 'EOF' >> $TMP
+        echo $TMP
+#    - name: Compare license reports
+#      id: compare_reports
+#      run: |
+#        echo 'DIFF_OUT<<EOF' >> $GITHUB_ENV
+#        diff -u target_licenses.csv pr_licenses.csv >> $GITHUB_ENV
+#        echo "\n" >> $GITHUB_ENV
+#        echo 'EOF' >> $GITHUB_ENV
+#        echo "::set-output name=diff::$DIFF_OUT"
+#    - name: Update PR if different
+#      uses: actions/github-script@v3
+#      env:
+#        DIFF_OUTPUT: ${{ steps.compare_reports.outputs.diff }}
+#      if: ${{ steps.compare_reports.outputs.diff != '' }}
+#      with:
+#        github-token: ${{ secrets.GITHUB_TOKEN }}
+#        script: |
+#            github.issues.createComment({
+#              issue_number: context.issue.number,
+#              owner: context.repo.owner,
+#              repo: context.repo.repo,
+#              body: 'Licenses differ between PR and base:\n' + process.env.DIFF_OUTPUT
+#            })
 
