@@ -54,7 +54,7 @@ jobs:
 #       echo "::set-output name=diff::$(diff -u target_licenses.csv pr_licenses.csv)"
     - name: Update PR if licenses differ
       uses: actions/github-script@v3
-      if: ${{ steps.compare_reports.outputs.diff != '' }}
+      if: ${{ env.DIFF_OUT != '' }}
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
