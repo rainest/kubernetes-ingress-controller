@@ -27,7 +27,7 @@ jobs:
       run: go-licenses csv ./cli/ingress-controller/ | sort > ${{ github.workspace }}/target_licenses.csv
       working-directory: src/github.com/Kong/kubernetes-ingress-controller
     - name: Checkout PR
-      run: git checkout ${{ github.head_ref }}
+      run: git checkout ${{ github.sha }}
       working-directory: src/github.com/Kong/kubernetes-ingress-controller
 #   - name: Checkout PR
 #     uses: actions/checkout@v2
