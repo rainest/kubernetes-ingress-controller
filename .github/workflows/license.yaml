@@ -51,16 +51,16 @@ jobs:
     - name: Generate garbage data
       id: garbage_test_data
       run: |
-        echo "foo\n\bar" > target_licenses.csv
-        echo "foo\n\bar\nbaz" > pr_licenses.csv
+        echo "foo\n\bar" > ${{ github.workspace }}/target_licenses.csv
+        echo "foo\n\bar\nbaz" > ${{ github.workspace }}/pr_licenses.csv
         cat target_licenses.csv pr_licenses.csv
     - name: Compare license reports
       id: compare_reports
       run: |
         set -x
-        cat target_licenses.csv pr_licenses.csv
+        cat ${{ github.workspace }}/target_licenses.csv ${{ github.workspace }}/pr_licenses.csv
         echo 'DIFF_OUT<<EOF' >> wat.txt
-        diff -u target_licenses.csv pr_licenses.csv >> wat.txt
+        diff -u ${{ github.workspace }}/target_licenses.csv ${{ github.workspace }}/pr_licenses.csv >> wat.txt
         echo 'EOF' >> wat.txt
         cat wat.txt
     - name: Update PR if different
