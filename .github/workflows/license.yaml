@@ -4,6 +4,7 @@ on: [pull_request]
 
 jobs:
   licenses:
+    if: "!contains(github.event.pull_request.labels.*.name, 'ci/license-status-change')"
     env:
       GOPATH: ${{ github.workspace }}
       GOBIN: ${{ github.workspace }}/bin
@@ -34,24 +35,12 @@ jobs:
     - name: Generate PR license report
       run: go-licenses csv ./cli/ingress-controller/ | sort > ${{ github.workspace }}/pr_licenses.csv
       working-directory: src/github.com/Kong/kubernetes-ingress-controller
-#   - name: Compare license reports
-#     id: compare_reports
-#     run: |
-#       echo 'JSON_RESPONSE<<EOF' >> $GITHUB_ENV
-#       curl https://httpbin.org/json >> $GITHUB_ENV
-#       echo 'EOF' >> $GITHUB_ENV
-#       echo "::set-output name=diff::$JSON_RESPONSE"
     - name: Compare license reports
       id: compare_reports
       run: |
         echo 'DIFF_OUT<<EOF' >> $GITHUB_ENV
         diff -u target_licenses.csv pr_licenses.csv >> $GITHUB_ENV || true
         echo 'EOF' >> $GITHUB_ENV
-#   - name: Compare license reports
-#     id: compare_reports
-#     run: |
-#       diff -u target_licenses.csv pr_licenses.csv
-#       echo "::set-output name=diff::$(diff -u target_licenses.csv pr_licenses.csv)"
     - name: Update PR if licenses differ
       uses: actions/github-script@v3
       if: ${{ env.DIFF_OUT != '' }}
@@ -62,6 +51,12 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: 'Licenses differ between PR and base:\n' + process.env.DIFF_OUT
+              body: 'Licenses differ between PR and base:\n```' + process.env.DIFF_OUT + '```'
+            })
+            github.issues.addLabels({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ['ci/license-status-change']
             })
 
