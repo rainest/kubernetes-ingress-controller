@@ -9,31 +9,31 @@ jobs:
       GOBIN: ${{ github.workspace }}/bin
     runs-on: ubuntu-latest
     steps:
-#   - name: Setup go
-#     uses: actions/setup-go@v2
-#     with:
-#       go-version: '^1.15'
-#   - name: Install go-licenses
-#     run: go get github.com/google/go-licenses
-#   - name: Create source location
-#     run: mkdir -p src/github.com/Kong/
-#   - name: Checkout target
-#     uses: actions/checkout@v2
-#     with:
-#       ref: ${{ github.event.pull_request.base.ref }}
-#       path: src/github.com/Kong/kubernetes-ingress-controller
-#   - name: Generate target license report
-#     run: go-licenses csv ./cli/ingress-controller/ | sort > ${{ github.workspace }}/target_licenses.csv
-#     working-directory: src/github.com/Kong/kubernetes-ingress-controller
-#   - name: Clear target
-#     run: rm -rf src/github.com/Kong/kubernetes-ingress-controller
-#   - name: Checkout PR
-#     uses: actions/checkout@v2
-#     with:
-#       path: src/github.com/Kong/kubernetes-ingress-controller
-#   - name: Generate PR license report
-#     run: go-licenses csv ./cli/ingress-controller/ | sort > ${{ github.workspace }}/pr_licenses.csv
-#     working-directory: src/github.com/Kong/kubernetes-ingress-controller
+    - name: Setup go
+      uses: actions/setup-go@v2
+      with:
+        go-version: '^1.15'
+    - name: Install go-licenses
+      run: go get github.com/google/go-licenses
+    - name: Create source location
+      run: mkdir -p src/github.com/Kong/
+    - name: Checkout target
+      uses: actions/checkout@v2
+      with:
+        ref: ${{ github.event.pull_request.base.ref }}
+        path: src/github.com/Kong/kubernetes-ingress-controller
+    - name: Generate target license report
+      run: go-licenses csv ./cli/ingress-controller/ | sort > ${{ github.workspace }}/target_licenses.csv
+      working-directory: src/github.com/Kong/kubernetes-ingress-controller
+    - name: Clear target
+      run: rm -rf src/github.com/Kong/kubernetes-ingress-controller
+    - name: Checkout PR
+      uses: actions/checkout@v2
+      with:
+        path: src/github.com/Kong/kubernetes-ingress-controller
+    - name: Generate PR license report
+      run: go-licenses csv ./cli/ingress-controller/ | sort > ${{ github.workspace }}/pr_licenses.csv
+      working-directory: src/github.com/Kong/kubernetes-ingress-controller
 #   - name: Compare license reports
 #     id: compare_reports
 #     run: |
@@ -48,20 +48,12 @@ jobs:
 #       diff -u target_licenses.csv pr_licenses.csv >> $GITHUB_ENV
 #       echo 'EOF' >> $GITHUB_ENV
 #       echo "::set-output name=diff::$DIFF_OUT"
-    - name: Generate garbage data
-      id: garbage_test_data
-      run: |
-        echo "foo\n\bar" > ${{ github.workspace }}/target_licenses.csv
-        echo "foo\n\bar\nbaz" > ${{ github.workspace }}/pr_licenses.csv
-        cat target_licenses.csv pr_licenses.csv
     - name: Compare license reports
       id: compare_reports
       run: |
-        echo 'DIFF_OUT<<EOF' >> ${{ github.workspace }}/wat.txt
-        diff -u ${{ github.workspace }}/target_licenses.csv ${{ github.workspace }}/pr_licenses.csv >> ${{ github.workspace }}/wat.txt
-        echo 'EOF' >> ${{ github.workspace }}/wat.txt
-        cat ${{ github.workspace }}/wat.txt
-    - name: Update PR if different
+        DIFF_OUT=$(diff -u target_licenses.csv pr_licenses.csv)
+        echo "::set-output name=diff::$DIFF_OUT"
+    - name: Update PR if licenses differ
       uses: actions/github-script@v3
       env:
         DIFF_OUTPUT: ${{ steps.compare_reports.outputs.diff }}
