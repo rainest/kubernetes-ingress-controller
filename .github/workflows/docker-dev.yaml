@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - 'main-test'
-      - 'ci/build-push-image'
 
 jobs:
   docker:
@@ -25,6 +24,10 @@ jobs:
           username: ${{ secrets.DOCKER_TEST_USERNAME }}
           password: ${{ secrets.DOCKER_TEST_TOKEN }}
       - name: Build binary
+        env:
+          TAG: ${GITHUB_REF##*/}
+          COMMIT: ${{ github.sha }}
+          REPO_INFO: https://github.com/${{ github.repository }}.git
         id: docker_build_binary
         uses: docker/build-push-action@v2
         with:
@@ -39,22 +42,17 @@ jobs:
         with:
           push: true
           file: Dockerfile.all
-          tags: traines/kic:main-alpine
+          tags: traines/kic:${GITHUB_REF##*/}-alpine
           cache-from: type=local,src=/tmp/.buildx-cache
           target: alpine
       - name: Build and push RedHat
+        env:
+          TAG: ${GITHUB_REF##*/}
         id: docker_build_redhat
         uses: docker/build-push-action@v2
         with:
           push: true
           file: Dockerfile.all
-          tags: traines/kic:main-alpine
+          tags: traines/kic:${GITHUB_REF##*/}-redhat
           cache-from: type=local,src=/tmp/.buildx-cache
           target: redhat
-      # TODO https://github.com/docker/build-push-action/issues/252
-      - name: Move cache
-        run: |
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
-      - name: Image digest
-        run: echo ${{ steps.docker_build.outputs.digest }}
