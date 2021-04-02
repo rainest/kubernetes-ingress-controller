@@ -1,0 +1,10 @@
+FROM golang:1.15 AS build
+WORKDIR /kong-ingress-controller
+COPY go.mod ./
+COPY go.sum ./
+RUN go mod download
+ADD . .
+ARG TAG
+ARG REPO_INFO
+ARG COMMIT
+RUN CGO_ENABLED=0 GOOS=linux go build -o kong-ingress-controller -ldflags "-s -w -X main.RELEASE=$TAG -X main.COMMIT=$COMMIT -X main.REPO=$REPO_INFO" ./cli/ingress-controller
