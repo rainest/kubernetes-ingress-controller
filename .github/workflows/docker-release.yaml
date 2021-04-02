@@ -3,7 +3,7 @@ name: Build and push development images
 on:
   push:
     tags-ignore:
-      - *rc*
+      - '*rc*'
 
 jobs:
   docker:
