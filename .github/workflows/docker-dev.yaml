@@ -23,9 +23,12 @@ jobs:
         with:
           username: ${{ secrets.DOCKER_TEST_USERNAME }}
           password: ${{ secrets.DOCKER_TEST_TOKEN }}
+      - name: Extract branch name
+        id: extract_branch
+        run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
       - name: Build binary
         env:
-          TAG: ${GITHUB_REF##*/}
+          TAG: ${{ steps.extract_branch.outputs.branch }}
           COMMIT: ${{ github.sha }}
           REPO_INFO: https://github.com/${{ github.repository }}.git
         id: docker_build_binary
@@ -42,7 +45,7 @@ jobs:
         with:
           push: true
           file: Dockerfile.all
-          tags: traines/kic:${GITHUB_REF##*/}-alpine
+          tags: traines/kic:${{ steps.extract_branch.outputs.branch }}-alpine
           cache-from: type=local,src=/tmp/.buildx-cache
           target: alpine
       - name: Build and push RedHat
@@ -53,6 +56,6 @@ jobs:
         with:
           push: true
           file: Dockerfile.all
-          tags: traines/kic:${GITHUB_REF##*/}-redhat
+          tags: traines/kic:${{ steps.extract_branch.outputs.branch }}-redhat
           cache-from: type=local,src=/tmp/.buildx-cache
           target: redhat
