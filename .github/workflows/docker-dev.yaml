@@ -17,7 +17,7 @@ jobs:
       #  run: echo ::set-output name=TAG::${GITHUB_REF/refs\/tags\//}
       - name: Parse semver string
         id: semver_parser
-        if: github.event.ref_type == 'tag'
+        if: ${{ github.event.ref_type }} == 'tag'
         uses: booxmedialtd/ws-action-parse-semver@v1
         with:
           input_string: ${{ github.ref }}
