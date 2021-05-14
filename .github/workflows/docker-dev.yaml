@@ -19,7 +19,7 @@ jobs:
           input_string: ${{ github.ref }}
           version_extractor_regex: 'refs\/tags\/(.*)$'
       - name: Add Alpine standard tags
-        if: ${{ steps.semver_parser.outputs.prerelease }} == ''
+        if: ${{ steps.semver_parser.outputs.prerelease == '' }}
         run: |
           echo 'ALPINE_STANDARD<<EOF' >> $GITHUB_ENV
           echo 'type=ref,event=branch,suffix=-alpine' >> $GITHUB_ENV
