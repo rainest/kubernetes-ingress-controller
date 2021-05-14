@@ -42,7 +42,7 @@ jobs:
         if: ${{ steps.semver_parser.outputs.prerelease }} == ''
         run: |
           echo 'ALPINE_SUPPLEMENTAL<<EOF' >> $GITHUB_ENV
-          echo "\n" >> $GITHUB_ENV
+          echo "" >> $GITHUB_ENV
           echo 'type=semver,pattern={{major}}.{{minor}}' >> $GITHUB_ENV
           echo 'type=semver,pattern={{major}}.{{minor}},suffix=-alpine' >> $GITHUB_ENV
           echo 'EOF' >> $GITHUB_ENV
@@ -50,7 +50,7 @@ jobs:
         if: ${{ steps.semver_parser.outputs.prerelease }} == ''
         run: |
           echo 'REDHAT_SUPPLEMENTAL<<EOF' >> $GITHUB_ENV
-          echo "\n" >> $GITHUB_ENV
+          echo "" >> $GITHUB_ENV
           echo 'type=semver,pattern={{major}}.{{minor}},suffix=-redhat' >> $GITHUB_ENV
           echo 'EOF' >> $GITHUB_ENV
       - name: Set up Docker Buildx
