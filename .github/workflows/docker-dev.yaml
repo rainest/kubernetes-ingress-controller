@@ -11,15 +11,11 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     steps:
-      #- name: Extract tag
-      #  id: extract_tag
-      #  if: github.event.ref_type == 'tag'
-      #  run: echo ::set-output name=TAG::${GITHUB_REF/refs\/tags\//}
       - name: Echo github obj
         run: echo ${{ toJson(github.event) }}
       - name: Parse semver string
         id: semver_parser
-        if: ${{ github.event.type }} == 'CreateEvent' && ${{ github.event.ref_type }} == 'tag'
+        if: ${{ contains(github.ref, "tags") }}
         uses: booxmedialtd/ws-action-parse-semver@v1
         with:
           input_string: ${{ github.ref }}
