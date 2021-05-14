@@ -19,7 +19,6 @@ jobs:
           input_string: ${{ github.ref }}
           version_extractor_regex: 'refs\/tags\/(.*)$'
       - name: Add Alpine standard tags
-        if: ${{ steps.semver_parser.outputs.prerelease == '' }}
         run: |
           echo 'ALPINE_STANDARD<<EOF' >> $GITHUB_ENV
           echo 'type=ref,event=branch,suffix=-alpine' >> $GITHUB_ENV
@@ -28,14 +27,13 @@ jobs:
           echo 'type=semver,pattern={{version}}' >> $GITHUB_ENV
           echo 'EOF' >> $GITHUB_ENV
       - name: Add Red Hat standard tags
-        if: ${{ steps.semver_parser.outputs.prerelease }} == ''
         run: |
           echo 'REDHAT_STANDARD<<EOF' >> $GITHUB_ENV
           echo 'type=ref,event=branch,suffix=-redhat' >> $GITHUB_ENV
           echo 'type=semver,pattern={{version}},suffix=-redhat' >> $GITHUB_ENV
           echo 'EOF' >> $GITHUB_ENV
       - name: Add Alpine major.minor tag
-        if: ${{ steps.semver_parser.outputs.prerelease }} == ''
+        if: ${{ steps.semver_parser.outputs.prerelease == '' }}
         run: |
           echo 'ALPINE_SUPPLEMENTAL<<EOF' >> $GITHUB_ENV
           echo "" >> $GITHUB_ENV
@@ -43,7 +41,7 @@ jobs:
           echo 'type=semver,pattern={{major}}.{{minor}},suffix=-alpine' >> $GITHUB_ENV
           echo 'EOF' >> $GITHUB_ENV
       - name: Add Red Hat major.minor tag
-        if: ${{ steps.semver_parser.outputs.prerelease }} == ''
+        if: ${{ steps.semver_parser.outputs.prerelease == '' }}
         run: |
           echo 'REDHAT_SUPPLEMENTAL<<EOF' >> $GITHUB_ENV
           echo "" >> $GITHUB_ENV
