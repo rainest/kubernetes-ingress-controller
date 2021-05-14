@@ -15,7 +15,7 @@ jobs:
         run: echo ${{ toJson(github.event) }}
       - name: Parse semver string
         id: semver_parser
-        if: ${{ contains(github.ref, "tags") }}
+        if: ${{ contains(github.ref, 'tags') }}
         uses: booxmedialtd/ws-action-parse-semver@v1
         with:
           input_string: ${{ github.ref }}
