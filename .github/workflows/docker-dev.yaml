@@ -15,6 +15,8 @@ jobs:
       #  id: extract_tag
       #  if: github.event.ref_type == 'tag'
       #  run: echo ::set-output name=TAG::${GITHUB_REF/refs\/tags\//}
+      - name: Echo github obj
+        run: echo ${{ toJson(github.event) }}
       - name: Parse semver string
         id: semver_parser
         if: ${{ github.event.type }} == 'CreateEvent' && ${{ github.event.ref_type }} == 'tag'
