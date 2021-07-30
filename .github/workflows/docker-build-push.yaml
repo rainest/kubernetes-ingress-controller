@@ -20,6 +20,8 @@ jobs:
         with:
           input_string: ${{ github.ref }}
           version_extractor_regex: 'refs\/tags\/v(.*)$'
+      - name: checkout
+        uses: actions/checkout@v2
       - name: Read latest_version
         id: latest_version
         uses: juliangruber/read-file-action@v1
