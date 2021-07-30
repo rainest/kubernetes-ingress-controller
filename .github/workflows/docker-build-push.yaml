@@ -56,7 +56,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v3.3.0
         with:
-          images: kong/kubernetes-ingress-controller
+          images: traines/kic
           flavor: |
             latest=${{ steps.semver_parser.outputs.fullversion == steps.latest_version.outputs.content }}
           tags: ${{ env.TAGS_STANDARD }}${{ env.TAGS_SUPPLEMENTAL }}
