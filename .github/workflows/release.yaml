@@ -188,7 +188,7 @@ jobs:
         id: meta_redhat
         uses: docker/metadata-action@v3.3.0
         with:
-          images: kong/kubernetes-ingress-controller
+          images: traines/kic
           flavor: |
             latest=false
           tags: ${{ env.REDHAT_STANDARD }}${{ env.REDHAT_SUPPLEMENTAL }}
