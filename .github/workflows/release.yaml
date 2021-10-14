@@ -169,7 +169,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v3.5.0
         with:
-          images: kong/kubernetes-ingress-controller
+          images: traines/kic
           tags: ${{ env.TAGS_STANDARD }}${{ env.TAGS_SUPPLEMENTAL }}
       - name: Build binary
         env:
