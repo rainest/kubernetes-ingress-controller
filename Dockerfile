@@ -28,7 +28,7 @@ ENTRYPOINT ["/manager"]
 
 # Build UBI image
 FROM registry.access.redhat.com/ubi8/ubi AS redhat
-ARG TAG
+ARG tag
 
 LABEL name="Kong Ingress Controller" \
       vendor="Kong" \
