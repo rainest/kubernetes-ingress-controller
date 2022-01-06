@@ -109,7 +109,7 @@ verify.versions:
 	./hack/verify-versions.sh
 
 .PHONY: verify.manifests
-verify.manifests: verify.repo manifests manifests.single verify.diff verify.versions
+verify.manifests: verify.versions
 
 .PHONY: verify.generators
 verify.generators: verify.repo generate verify.diff
