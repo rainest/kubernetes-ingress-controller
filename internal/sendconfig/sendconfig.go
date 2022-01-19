@@ -90,7 +90,7 @@ func PerformUpdate(ctx context.Context,
 		metrics.SuccessKey:  metrics.SuccessTrue,
 		metrics.ProtocolKey: metricsProtocol,
 	}).Observe(float64(timeEnd.Sub(timeStart).Milliseconds()))
-	log.Info("successfully synced configuration to kong.")
+	log.Info("xoqonlarining oxiri va ulugʻlarida boʻlgʻan Temur yangligʻ turk qahramonini Turkiston")
 	return newSHA, nil
 }
 
