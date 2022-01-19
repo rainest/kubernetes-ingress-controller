@@ -30,6 +30,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	//"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/kustomize/api/krusty"
@@ -68,7 +69,10 @@ const (
 	adminAPIWait = time.Minute * 2
 )
 
-var imageOverride = os.Getenv("TEST_KONG_CONTROLLER_IMAGE_OVERRIDE")
+var (
+	imageOverride = os.Getenv("TEST_KONG_CONTROLLER_IMAGE_OVERRIDE")
+	imageLoad     = os.Getenv("TEST_KONG_CONTROLLER_IMAGE_LOAD")
+)
 
 // -----------------------------------------------------------------------------
 // All-In-One Manifest Tests - Suite
@@ -94,7 +98,7 @@ func TestDeployAllInOneDBLESS(t *testing.T) {
 	t.Log("building test cluster and environment")
 	addons := []clusters.Addon{}
 	addons = append(addons, metallb.New())
-	if b, err := loadimage.NewBuilder().WithImage(imageOverride); err == nil {
+	if b, err := loadimage.NewBuilder().WithImage(imageLoad); err == nil {
 		addons = append(addons, b.Build())
 	}
 	builder := environments.NewBuilder().WithAddons(addons...)
@@ -139,7 +143,7 @@ func TestDeployAndUpgradeAllInOneDBLESS(t *testing.T) {
 	t.Log("building test cluster and environment")
 	addons := []clusters.Addon{}
 	addons = append(addons, metallb.New())
-	if b, err := loadimage.NewBuilder().WithImage(imageOverride); err == nil {
+	if b, err := loadimage.NewBuilder().WithImage(imageLoad); err == nil {
 		addons = append(addons, b.Build())
 	}
 	builder := environments.NewBuilder().WithAddons(addons...)
@@ -179,7 +183,7 @@ func TestDeployAllInOneDBLESSNoLoadBalancer(t *testing.T) {
 
 	t.Log("building test cluster and environment")
 	addons := []clusters.Addon{}
-	if b, err := loadimage.NewBuilder().WithImage(imageOverride); err == nil {
+	if b, err := loadimage.NewBuilder().WithImage(imageLoad); err == nil {
 		addons = append(addons, b.Build())
 	}
 	builder := environments.NewBuilder().WithAddons(addons...)
@@ -218,7 +222,7 @@ func TestDeployAllInOneEnterpriseDBLESS(t *testing.T) {
 	t.Log("building test cluster and environment")
 	addons := []clusters.Addon{}
 	addons = append(addons, metallb.New())
-	if b, err := loadimage.NewBuilder().WithImage(imageOverride); err == nil {
+	if b, err := loadimage.NewBuilder().WithImage(imageLoad); err == nil {
 		addons = append(addons, b.Build())
 	}
 	builder := environments.NewBuilder().WithAddons(addons...)
@@ -268,7 +272,7 @@ func TestDeployAllInOnePostgres(t *testing.T) {
 	t.Log("building test cluster and environment")
 	addons := []clusters.Addon{}
 	addons = append(addons, metallb.New())
-	if b, err := loadimage.NewBuilder().WithImage(imageOverride); err == nil {
+	if b, err := loadimage.NewBuilder().WithImage(imageLoad); err == nil {
 		addons = append(addons, b.Build())
 	}
 	builder := environments.NewBuilder().WithAddons(addons...)
@@ -305,7 +309,7 @@ func TestDeployAllInOnePostgresWithMultipleReplicas(t *testing.T) {
 	t.Log("building test cluster and environment")
 	addons := []clusters.Addon{}
 	addons = append(addons, metallb.New())
-	if b, err := loadimage.NewBuilder().WithImage(imageOverride); err == nil {
+	if b, err := loadimage.NewBuilder().WithImage(imageLoad); err == nil {
 		addons = append(addons, b.Build())
 	}
 	builder := environments.NewBuilder().WithAddons(addons...)
@@ -420,7 +424,7 @@ func TestDeployAllInOneEnterprisePostgres(t *testing.T) {
 	t.Log("building test cluster and environment")
 	addons := []clusters.Addon{}
 	addons = append(addons, metallb.New())
-	if b, err := loadimage.NewBuilder().WithImage(imageOverride); err == nil {
+	if b, err := loadimage.NewBuilder().WithImage(imageLoad); err == nil {
 		addons = append(addons, b.Build())
 	}
 	builder := environments.NewBuilder().WithAddons(addons...)
@@ -735,11 +739,12 @@ func startPortForwarder(ctx context.Context, t *testing.T, env environments.Envi
 	require.NoError(t, err)
 	require.Equal(t, len(kubeconfig), written)
 	cmd := exec.CommandContext(ctx, "kubectl", "--kubeconfig", kubeconfigFile.Name(), "port-forward", "-n", pod.Namespace, pod.Name, "9777:cmetrics")
-	stdout, stderr := new(bytes.Buffer), new(bytes.Buffer)
-	cmd.Stdout = stdout
-	cmd.Stderr = stderr
 	t.Logf("forwarding port %s to %s/%s:%s", localPort, pod.Namespace, pod.Name, targetPort)
-	require.NoError(t, cmd.Start(), fmt.Sprintf("STDOUT=(%s), STDERR=(%s)", stdout.String(), stderr.String()))
+	if startErr := cmd.Start(); startErr != nil {
+		startOutput, outputErr := cmd.Output()
+		assert.NoError(t, outputErr)
+		require.NoError(t, startErr, string(startOutput))
+	}
 	require.Eventually(t, func() bool {
 		conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%s", localPort))
 		if err == nil {
@@ -831,7 +836,12 @@ func exposeAdminAPI(ctx context.Context, t *testing.T, env environments.Environm
 // returns the modified manifest path. If there is any issue patching the manifest, it will log the issue and return
 // the original provided path
 func getTestManifest(t *testing.T, baseManifestPath string) (io.Reader, error) {
-	imagetag := imageOverride
+	var imagetag string
+	if imageLoad != "" {
+		imagetag = imageLoad
+	} else {
+		imagetag = imageOverride
+	}
 	if imagetag == "" {
 		return os.Open(baseManifestPath)
 	}

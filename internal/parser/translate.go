@@ -12,7 +12,6 @@ import (
 	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	knative "knative.dev/networking/pkg/apis/networking/v1alpha1"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	"github.com/kong/kubernetes-ingress-controller/v2/internal/kongstate"
 	"github.com/kong/kubernetes-ingress-controller/v2/internal/util"
@@ -100,13 +99,13 @@ func fromIngressV1beta1(log logrus.FieldLogger, ingressList []*networkingv1beta1
 							Host: kong.String(rule.Backend.ServiceName +
 								"." + ingress.Namespace + "." +
 								rule.Backend.ServicePort.String() + ".svc"),
-							Port:           kong.Int(80),
+							Port:           kong.Int(DefaultHTTPPort),
 							Protocol:       kong.String("http"),
 							Path:           kong.String("/"),
-							ConnectTimeout: kong.Int(60000),
-							ReadTimeout:    kong.Int(60000),
-							WriteTimeout:   kong.Int(60000),
-							Retries:        kong.Int(5),
+							ConnectTimeout: kong.Int(DefaultServiceTimeout),
+							ReadTimeout:    kong.Int(DefaultServiceTimeout),
+							WriteTimeout:   kong.Int(DefaultServiceTimeout),
+							Retries:        kong.Int(DefaultRetries),
 						},
 						Namespace: ingress.Namespace,
 						Backend: kongstate.ServiceBackend{
@@ -140,12 +139,12 @@ func fromIngressV1beta1(log logrus.FieldLogger, ingressList []*networkingv1beta1
 					Host: kong.String(defaultBackend.ServiceName + "." +
 						ingress.Namespace + "." +
 						defaultBackend.ServicePort.String() + ".svc"),
-					Port:           kong.Int(80),
+					Port:           kong.Int(DefaultHTTPPort),
 					Protocol:       kong.String("http"),
-					ConnectTimeout: kong.Int(60000),
-					ReadTimeout:    kong.Int(60000),
-					WriteTimeout:   kong.Int(60000),
-					Retries:        kong.Int(5),
+					ConnectTimeout: kong.Int(DefaultServiceTimeout),
+					ReadTimeout:    kong.Int(DefaultServiceTimeout),
+					WriteTimeout:   kong.Int(DefaultServiceTimeout),
+					Retries:        kong.Int(DefaultRetries),
 				},
 				Namespace: ingress.Namespace,
 				Backend: kongstate.ServiceBackend{
@@ -252,13 +251,13 @@ func fromIngressV1(log logrus.FieldLogger, ingressList []*networkingv1.Ingress) 
 							Name: kong.String(serviceName),
 							Host: kong.String(fmt.Sprintf("%s.%s.%s.svc", rulePath.Backend.Service.Name, ingress.Namespace,
 								port.CanonicalString())),
-							Port:           kong.Int(80),
+							Port:           kong.Int(DefaultHTTPPort),
 							Protocol:       kong.String("http"),
 							Path:           kong.String("/"),
-							ConnectTimeout: kong.Int(60000),
-							ReadTimeout:    kong.Int(60000),
-							WriteTimeout:   kong.Int(60000),
-							Retries:        kong.Int(5),
+							ConnectTimeout: kong.Int(DefaultServiceTimeout),
+							ReadTimeout:    kong.Int(DefaultServiceTimeout),
+							WriteTimeout:   kong.Int(DefaultServiceTimeout),
+							Retries:        kong.Int(DefaultRetries),
 						},
 						Namespace: ingress.Namespace,
 						Backend: kongstate.ServiceBackend{
@@ -291,12 +290,12 @@ func fromIngressV1(log logrus.FieldLogger, ingressList []*networkingv1.Ingress) 
 					Name: kong.String(serviceName),
 					Host: kong.String(fmt.Sprintf("%s.%s.%d.svc", defaultBackend.Service.Name, ingress.Namespace,
 						defaultBackend.Service.Port.Number)),
-					Port:           kong.Int(80),
+					Port:           kong.Int(DefaultHTTPPort),
 					Protocol:       kong.String("http"),
-					ConnectTimeout: kong.Int(60000),
-					ReadTimeout:    kong.Int(60000),
-					WriteTimeout:   kong.Int(60000),
-					Retries:        kong.Int(5),
+					ConnectTimeout: kong.Int(DefaultServiceTimeout),
+					ReadTimeout:    kong.Int(DefaultServiceTimeout),
+					WriteTimeout:   kong.Int(DefaultServiceTimeout),
+					Retries:        kong.Int(DefaultRetries),
 				},
 				Namespace: ingress.Namespace,
 				Backend: kongstate.ServiceBackend{
@@ -317,91 +316,6 @@ func fromIngressV1(log logrus.FieldLogger, ingressList []*networkingv1.Ingress) 
 				RequestBuffering:  kong.Bool(true),
 				ResponseBuffering: kong.Bool(true),
 			},
-		}
-		service.Routes = append(service.Routes, r)
-		result.ServiceNameToServices[serviceName] = service
-	}
-
-	return result
-}
-
-// fromHTTPRoutes processes all the HTTPRoute objects present in the cache and translates
-// them to Kong Gateway configurations.
-//
-// TODO: this function is a WIP and is only implemented at POC level currently. The code
-//       is not reachable unless the Gateway feature gate has been enabled and the relevant
-//       milestone for tracking completion is:
-//
-//         https://github.com/Kong/kubernetes-ingress-controller/issues/2079
-//
-//       you may see several TODO's scattered throughout this function, they are all covered by #2079
-func fromHTTPRoutes(_ logrus.FieldLogger, httpRouteList []*gatewayv1alpha2.HTTPRoute) ingressRules { // TODO: use log
-	result := newIngressRules()
-
-	for _, httproute := range httpRouteList {
-		// first we grab the spec and gather some metdata about the object
-		spec := httproute.Spec
-		objectInfo := util.FromK8sObject(httproute)
-
-		// next we need to gather all the matching information e.g. paths, methods, e.t.c.
-		methods := make([]*string, 0) // TODO: implement inclusive path/method matches
-		paths := make([]*string, 0)
-		for _, rule := range spec.Rules {
-			for _, match := range rule.Matches {
-				paths = append(paths, match.Path.Value)
-			}
-		}
-
-		// we create a kong route which will transact the traffic matching
-		// information for inbound gateway requests.
-		r := kongstate.Route{
-			Ingress: objectInfo,
-			Route: kong.Route{
-				Name:         kong.String(fmt.Sprintf("%s.%s.%s", httproute.Namespace, httproute.Name, httproute.UID)), // TODO: is UID the best way to do this universally?
-				Paths:        paths,
-				Methods:      methods,         // TODO: actually implement method matches
-				StripPath:    kong.Bool(true), // TODO: dynamic
-				PreserveHost: kong.Bool(true),
-				Protocols:    kong.StringSlice("http", "https"),
-				// TODO: RegexPriority
-			},
-		}
-		for _, host := range spec.Hostnames {
-			r.Hosts = append(r.Hosts, kong.String(string(host)))
-		}
-
-		// now that we've established the routing information and can match
-		// on the appropriate traffic, we need to determine the backend
-		// (Kubernetes Service) to direct the traffic to.
-		//
-		// TODO: right now for poc assuming only one backendref, will do all later
-		backend := spec.Rules[0].BackendRefs[0] // TODO: assuming 1 rule for poc
-		port := kongstate.PortDef{
-			Mode:   kongstate.PortModeByNumber, // TODO: assuming number for poc
-			Number: int32(*backend.Port),
-		}
-		serviceName := fmt.Sprintf("%s.%s.%d", httproute.Namespace, backend.Name, backend.Port)
-		service, ok := result.ServiceNameToServices[serviceName]
-		if !ok {
-			service = kongstate.Service{
-				Service: kong.Service{
-					Name: kong.String(serviceName),
-					Host: kong.String(string(backend.Name) + "." + httproute.Namespace +
-						"." + port.CanonicalString() + ".svc"),
-					Port:           kong.Int(80),
-					Protocol:       kong.String("http"),
-					Path:           kong.String("/"),
-					ConnectTimeout: kong.Int(60000),
-					ReadTimeout:    kong.Int(60000),
-					WriteTimeout:   kong.Int(60000),
-					Retries:        kong.Int(5),
-				},
-				Namespace: httproute.Namespace,
-				Backend: kongstate.ServiceBackend{
-					Name: string(backend.Name),
-					Port: port,
-				},
-			}
 		}
 		service.Routes = append(service.Routes, r)
 		result.ServiceNameToServices[serviceName] = service
@@ -474,12 +388,12 @@ func fromTCPIngressV1beta1(log logrus.FieldLogger, tcpIngressList []*configurati
 						Name: kong.String(serviceName),
 						Host: kong.String(fmt.Sprintf("%s.%s.%d.svc", rule.Backend.ServiceName, ingress.Namespace,
 							rule.Backend.ServicePort)),
-						Port:           kong.Int(80),
+						Port:           kong.Int(DefaultHTTPPort),
 						Protocol:       kong.String("tcp"),
-						ConnectTimeout: kong.Int(60000),
-						ReadTimeout:    kong.Int(60000),
-						WriteTimeout:   kong.Int(60000),
-						Retries:        kong.Int(5),
+						ConnectTimeout: kong.Int(DefaultServiceTimeout),
+						ReadTimeout:    kong.Int(DefaultServiceTimeout),
+						WriteTimeout:   kong.Int(DefaultServiceTimeout),
+						Retries:        kong.Int(DefaultRetries),
 					},
 					Namespace: ingress.Namespace,
 					Backend: kongstate.ServiceBackend{
@@ -637,13 +551,13 @@ func fromKnativeIngress(log logrus.FieldLogger, ingressList []*knative.Ingress) 
 						Service: kong.Service{
 							Name:           kong.String(serviceName),
 							Host:           kong.String(serviceHost),
-							Port:           kong.Int(80),
+							Port:           kong.Int(DefaultHTTPPort),
 							Protocol:       kong.String("http"),
 							Path:           kong.String("/"),
-							ConnectTimeout: kong.Int(60000),
-							ReadTimeout:    kong.Int(60000),
-							WriteTimeout:   kong.Int(60000),
-							Retries:        kong.Int(5),
+							ConnectTimeout: kong.Int(DefaultServiceTimeout),
+							ReadTimeout:    kong.Int(DefaultServiceTimeout),
+							WriteTimeout:   kong.Int(DefaultServiceTimeout),
+							Retries:        kong.Int(DefaultRetries),
 						},
 						Namespace: ingress.Namespace,
 						Backend: kongstate.ServiceBackend{
