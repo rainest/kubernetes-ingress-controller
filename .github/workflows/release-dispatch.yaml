@@ -15,6 +15,16 @@ jobs:
   verify-manifest-tag:
     runs-on: ubuntu-latest
     steps:
+      - uses: mukunku/tag-exists-action@v1.0.0
+        id: check-tag
+        name: check if tag already exists
+        with:
+          tag: ${{ github.event.inputs.tag }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: fail if tag already exists
+        if: ${{ steps.check-tag.outputs.exists == 'true' }}
+        run: exit 1
       - name: checkout repository
         uses: actions/checkout@v2
         with:
