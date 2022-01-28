@@ -12,9 +12,24 @@ on:
         default: 'false'
 
 jobs:
+  verify-manifest-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Parse semver string
+        id: semver_parser
+        uses: booxmedialtd/ws-action-parse-semver@v1
+        with:
+          input_string: ${{ github.event.inputs.tag }}
+          version_extractor_regex: 'v(.*)$'
+      - name: Verify manifests have requested KIC tag
+        env:
+          TAG: ${{ steps.semver_parser.outputs.fullversion }}
+        run: make verify.versions
+
   build-push-images:
     environment: 'Docker Push'
     runs-on: ubuntu-latest
+    needs: verify-manifest-tag
     steps:
       - name: Parse semver string
         id: semver_parser

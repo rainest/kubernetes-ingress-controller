@@ -76,10 +76,6 @@ build: generate fmt vet lint
 		-X github.com/kong/kubernetes-ingress-controller/v2/internal/metadata.Commit=$(COMMIT) \
 		-X github.com/kong/kubernetes-ingress-controller/v2/internal/metadata.Repo=$(REPO_INFO)" internal/cmd/main.go
 
-.PHONY: imports
-imports:
-	@find ./ -type f -name '*.go' -exec goimports -local $(REPO_URL) -w {} \;
-
 .PHONY: fmt
 fmt:
 	go fmt ./...
@@ -90,7 +86,7 @@ vet:
 
 .PHONY: lint
 lint: verify.tidy
-	golangci-lint run ./...
+	golangci-lint run -v
 
 .PHONY: verify.tidy
 verify.tidy:
@@ -104,12 +100,12 @@ verify.repo:
 verify.diff:
 	./hack/verify-diff.sh
 
-.PHONY: verify.diff
+.PHONY: verify.versions
 verify.versions:
-	./hack/verify-versions.sh
+	./hack/verify-versions.sh $(TAG)
 
 .PHONY: verify.manifests
-verify.manifests: verify.repo manifests manifests.single verify.diff verify.versions
+verify.manifests: verify.repo manifests manifests.single verify.diff
 
 .PHONY: verify.generators
 verify.generators: verify.repo generate verify.diff
