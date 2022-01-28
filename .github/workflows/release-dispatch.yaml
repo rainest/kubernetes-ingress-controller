@@ -29,27 +29,27 @@ jobs:
         run: |
           echo 'TAGS_STANDARD<<EOF' >> $GITHUB_ENV
           echo 'type=ref,event=branch' >> $GITHUB_ENV
-          echo 'type=raw,value=${{ steps.semver_parser.output.fullversion }}' >> $GITHUB_ENV
+          echo 'type=raw,value=${{ steps.semver_parser.outputs.fullversion }}' >> $GITHUB_ENV
           echo 'EOF' >> $GITHUB_ENV
       - name: Add major.minor tag
         if: ${{ steps.semver_parser.outputs.prerelease == '' }}
         run: |
           echo 'TAGS_SUPPLEMENTAL<<EOF' >> $GITHUB_ENV
           echo "" >> $GITHUB_ENV
-          echo 'type=raw,value=${{ steps.semver_parser.output.major }}.${{ steps.semver_parser.output.minor }}' >> $GITHUB_ENV
+          echo 'type=raw,value=${{ steps.semver_parser.outputs.major }}.${{ steps.semver_parser.outputs.minor }}' >> $GITHUB_ENV
           echo 'EOF' >> $GITHUB_ENV
       - name: Add Red Hat standard tags
         run: |
           echo 'REDHAT_STANDARD<<EOF' >> $GITHUB_ENV
           echo 'type=ref,event=branch,suffix=-redhat' >> $GITHUB_ENV
-          echo 'type=raw,value=${{ steps.semver_parser.output.fullversion }},suffix=-redhat' >> $GITHUB_ENV
+          echo 'type=raw,value=${{ steps.semver_parser.outputs.fullversion }},suffix=-redhat' >> $GITHUB_ENV
           echo 'EOF' >> $GITHUB_ENV
       - name: Add Red Hat major.minor tag
         if: ${{ steps.semver_parser.outputs.prerelease == '' }}
         run: |
           echo 'REDHAT_SUPPLEMENTAL<<EOF' >> $GITHUB_ENV
           echo "" >> $GITHUB_ENV
-          echo 'type=raw,value=${{ steps.semver_parser.output.major }}.${{ steps.semver_parser.output.minor }},suffix=-redhat' >> $GITHUB_ENV
+          echo 'type=raw,value=${{ steps.semver_parser.outputs.major }}.${{ steps.semver_parser.outputs.minor }},suffix=-redhat' >> $GITHUB_ENV
           echo 'EOF' >> $GITHUB_ENV
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
