@@ -1,0 +1,22 @@
+name: "Test Action"
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "releases/*"
+
+jobs:
+  test-action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: ./
+        id: is_organization_member_kong
+        with:
+          organization: Kong
+          username: rainest
+      - name: Log Result
+        run: |
+          result=${{steps.is_organization_member_kong.outputs.result}}
+          echo "$result"
