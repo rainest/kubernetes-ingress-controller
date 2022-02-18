@@ -10,9 +10,27 @@ jobs:
     outputs:
       runnable: ${{ steps.check.outputs.result }}
     steps:
-    - name: Check secret availability
+    - name: Check repo access
       id: check
-      run: echo ::set-output name=result::${{ secrets.GITHUB_TOKEN != ''}}
+      uses: actions/github-script@v6
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+            try {
+              status = github.rest.repos.checkCollaborator({
+                owner: "Kong",
+                repo: "kubernetes-ingress-controller",
+                username: "${{ github.event.pull_request.user.login }}"
+              });
+            } catch(error) {
+              //if (error instanceof HttpError) {
+              //  if (error.status == 403 || error.status == 404) {
+              //    return false
+              //  }
+              //  throw error
+              //}
+              return false
+            }
   licenses:
     needs: runnable
     if: "!contains(github.event.pull_request.labels.*.name, 'ci/license/changed') && needs.runnable.outputs.runnable == 'true'"
