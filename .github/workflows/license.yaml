@@ -16,21 +16,23 @@ jobs:
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
-            try {
-              status = github.rest.repos.checkCollaborator({
-                owner: "Kong",
-                repo: "kubernetes-ingress-controller",
-                username: "${{ github.event.pull_request.user.login }}"
-              });
-            } catch(error) {
-              //if (error instanceof HttpError) {
-              //  if (error.status == 403 || error.status == 404) {
-              //    return false
-              //  }
-              //  throw error
-              //}
-              return false
+            github.hook.error("request", async (error, options) => {
+              // 403 is no access to check, 404 is access to check but not a collaborator
+              if (error.status === 403 || error.status === 404 ) {
+                return false;
+              } else {
+                throw error;
+              }
+            });
+            var result = await github.rest.repos.checkCollaborator({
+              owner: "Kong",
+              repo: "kubernetes-ingress-controller",
+              username: "${{ github.event.pull_request.user.login }}"
+            });
+            if (result.status === 204) {
+              return true
             }
+
   licenses:
     needs: runnable
     if: "!contains(github.event.pull_request.labels.*.name, 'ci/license/changed') && needs.runnable.outputs.runnable == 'true'"
