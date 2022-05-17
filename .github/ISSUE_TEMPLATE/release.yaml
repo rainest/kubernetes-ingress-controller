@@ -38,7 +38,7 @@ body:
     label: "**For all releases** Create Release Branch"
     description: For this step we're going to start with the `main` branch to create our release branch (e.g. `release/X.Y.Z`) which will later be submitted as a pull request back to `main`.
     options: 
-      - label: "ensure that you have up to date copy of `main`: git fetch --all"
+      - label: "ensure that you have up to date copy of `main`: `git fetch --all`"
         required: true
       - label: "create the release branch for the version (e.g. `release/1.3.1`): `git branch -m release/x.y.z`"
         required: true
