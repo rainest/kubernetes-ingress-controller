@@ -1,6 +1,6 @@
-name:  Release
+name:  Release Mine
 description: Release/Pre-release of a version.
-labels: [release]
+labels: [release-mine]
 body:
 - type: dropdown
   id: release_type
