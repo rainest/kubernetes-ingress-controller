@@ -33,7 +33,14 @@ var emptyHeaderSet = make(map[string]string)
 
 func TestHTTPRouteEssentials(t *testing.T) {
 	ns, cleaner := setup(t)
-	defer func() { assert.NoError(t, cleaner.Cleanup(ctx)) }()
+	defer func() {
+		if t.Failed() {
+			output, err := cleaner.DumpDiagnostics(ctx)
+			t.Logf("%s failed, dumped diagnostics to %s", t.Name(), output)
+			assert.NoError(t, err)
+		}
+		assert.NoError(t, cleaner.Cleanup(ctx))
+	}()
 
 	t.Log("getting a gateway client")
 	gatewayClient, err := gatewayclient.NewForConfig(env.Cluster().Config())
