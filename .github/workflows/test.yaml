@@ -148,7 +148,7 @@ jobs:
         path: coverage.enterprisepostgres.out
 
     - name: upload diagnostics
-      if: always
+      if: ${{ always() }}
       uses: actions/upload-artifact@v3
       with:
         name: diagnostics-integration-tests-enterprise-postgres
@@ -200,7 +200,7 @@ jobs:
         path: coverage.enterprisepostgres.out
 
     - name: upload diagnostics
-      if: always
+      if: ${{ always() }}
       uses: actions/upload-artifact@v3
       with:
         name: diagnostics-integration-tests-enterprise-postgres-nightly
@@ -239,7 +239,7 @@ jobs:
         path: coverage.dbless.out
 
     - name: upload diagnostics
-      if: always
+      if: ${{ always() }}
       uses: actions/upload-artifact@v3
       with:
         name: diagnostics-integration-tests-dbless
@@ -278,7 +278,7 @@ jobs:
         path: coverage.postgres.out
 
     - name: upload diagnostics
-      if: always
+      if: ${{ always() }}
       uses: actions/upload-artifact@v3
       with:
         name: diagnostics-integration-tests-postgres
@@ -319,7 +319,7 @@ jobs:
         path: coverage.featuregates.out
 
     - name: upload diagnostics
-      if: always
+      if: ${{ always() }}
       uses: actions/upload-artifact@v3
       with:
         name: diagnostics-integration-tests-feature-gates
