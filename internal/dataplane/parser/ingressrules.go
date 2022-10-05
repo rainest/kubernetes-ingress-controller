@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/kong/go-kong/kong"
@@ -57,12 +58,16 @@ func (ir *ingressRules) populateServices(log logrus.FieldLogger, s store.Storer)
 
 		// if the Kubernetes services have been deemed invalid, log an error message
 		// and skip the current service.
-		if !servicesAllUseTheSameKongAnnotations(log, k8sServices, seenAnnotations) {
-			log.Errorf("the Kubernetes Services %v cannot have different sets of konghq.com annotations. "+
-				"These Services are used in the same Gateway Route BackendRef together to create the Kong Service %s"+
-				"and must use the same Kong annotations", k8sServices, *service.Name)
+		if match, inconsistent := servicesAllUseTheSameKongAnnotations(log, k8sServices, seenAnnotations); !match {
 			// The Kong services not having all the k8s services correctly annotated must be marked
 			// as to be skipped.
+			var names []string
+			for _, service := range k8sServices {
+				names = append(names, fmt.Sprintf("%s/%s", service.Namespace, service.Name))
+			}
+			log.Errorf("the services %s have inconsistent values for one or more annotations: %s. They are used in"+
+				"the same Gateway Route BackendRef together and must use the same Kong annotations",
+				strings.Join(names, ", "), strings.Join(inconsistent, ", "))
 			serviceNamesToSkip[key] = nil
 			continue
 		}
@@ -196,8 +201,8 @@ func servicesAllUseTheSameKongAnnotations(
 	log logrus.FieldLogger,
 	services []*corev1.Service,
 	annotations map[string]string,
-) bool {
-	match := true
+) (bool, []string) {
+	inconsistent := make(map[string]bool)
 	for _, service := range services {
 		// all services grouped together via backends must have identical annotations
 		// to avoid unexpected routing behaviors.
@@ -207,29 +212,20 @@ func servicesAllUseTheSameKongAnnotations(
 		// validation can work. We should be able to move this validation there
 		// once https://github.com/Kong/kubernetes-ingress-controller/issues/2195
 		// is resolved.
+
 		for k, v := range annotations {
 			valueForThisObject, ok := service.Annotations[k]
 			if !ok {
-				log.WithFields(logrus.Fields{
-					"service_name":      service.Name,
-					"service_namespace": service.Namespace,
-				}).Errorf("in the backend group of %d kubernetes services some have the %s annotation while others don't. "+
-					"this is not supported: when multiple services comprise a backend all kong annotations "+
-					"between them must be set to the same value", len(services), k)
-				match = false
-			}
-
-			if valueForThisObject != v {
-				log.WithFields(logrus.Fields{
-					"service_name":      service.Name,
-					"service_namespace": service.Namespace,
-				}).Errorf("the value of annotation %s is different between the %d services which comprise this backend. "+
-					"this is not supported: when multiple services comprise a backend all kong annotations "+
-					"between them must be set to the same value", k, len(services))
-				match = false
+				inconsistent[k] = true
+			} else if valueForThisObject != v {
+				inconsistent[k] = true
 			}
 		}
 	}
+	inconsistentKeys := make([]string, len(inconsistent))
+	for k := range inconsistent {
+		inconsistentKeys = append(inconsistentKeys, k)
+	}
 
-	return match
+	return len(inconsistent) == 0, inconsistentKeys
 }

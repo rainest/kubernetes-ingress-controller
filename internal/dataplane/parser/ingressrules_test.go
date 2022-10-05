@@ -2,6 +2,7 @@ package parser
 
 import (
 	"bytes"
+	"sort"
 	"testing"
 
 	"github.com/kong/go-kong/kong"
@@ -294,11 +295,11 @@ func TestGetK8sServicesForBackends(t *testing.T) {
 
 func TestDoK8sServicesMatchAnnotations(t *testing.T) {
 	for _, tt := range []struct {
-		name               string
-		services           []*corev1.Service
-		annotations        map[string]string
-		expected           bool
-		expectedLogEntries []string
+		name        string
+		services    []*corev1.Service
+		annotations map[string]string
+		badAnns     []string
+		expected    bool
 	}{
 		{
 			name:        "if no services are provided, then there's no validation failure",
@@ -416,10 +417,8 @@ func TestDoK8sServicesMatchAnnotations(t *testing.T) {
 				"konghq.com/bar": "foo",
 				"konghq.com/baz": "foo",
 			},
+			badAnns:  []string{"konghq.com/foo"},
 			expected: false,
-			expectedLogEntries: []string{
-				"in the backend group of 3 kubernetes services some have the konghq.com/foo annotation while others don't",
-			},
 		},
 		{
 			name: "validation fails if all services have the same annotations, but not the same value",
@@ -452,20 +451,53 @@ func TestDoK8sServicesMatchAnnotations(t *testing.T) {
 			annotations: map[string]string{
 				"konghq.com/foo": "bar",
 			},
+			badAnns:  []string{"konghq.com/foo"},
 			expected: false,
-			expectedLogEntries: []string{
-				"the value of annotation konghq.com/foo is different between the 3 services which comprise this backend.",
+		},
+		{
+			name: "validation fails if all services have the same annotations, but not the same value",
+			services: []*corev1.Service{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "test-service1",
+						Annotations: map[string]string{
+							"konghq.com/foo": "bar",
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "test-service2",
+						Annotations: map[string]string{
+							"konghq.com/bar": "baz",
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "test-service3",
+						Annotations: map[string]string{
+							"konghq.com/foo": "buzz",
+						},
+					},
+				},
 			},
+			annotations: map[string]string{
+				"konghq.com/foo": "bar",
+			},
+			badAnns:  []string{"konghq.com/foo", "konghq.com/bar"},
+			expected: false,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			stdout := new(bytes.Buffer)
 			logger := logrus.New()
 			logger.SetOutput(stdout)
-			assert.Equal(t, tt.expected, servicesAllUseTheSameKongAnnotations(logger, tt.services, tt.annotations))
-			for _, expectedLogEntry := range tt.expectedLogEntries {
-				assert.Contains(t, stdout.String(), expectedLogEntry)
-			}
+			match, inconsistent := servicesAllUseTheSameKongAnnotations(logger, tt.services, tt.annotations)
+			assert.Equal(t, tt.expected, match)
+			sort.Strings(tt.badAnns)
+			sort.Strings(inconsistent)
+			assert.Equal(t, tt.badAnns, inconsistent)
 		})
 	}
 }
