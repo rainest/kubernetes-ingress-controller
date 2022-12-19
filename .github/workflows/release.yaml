@@ -108,7 +108,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v4.1.1
         with:
-          images: kong/kubernetes-ingress-controller
+          images: traines/kic
           flavor: |
             latest=${{ github.event.inputs.latest == 'true' }}
           tags: ${{ env.TAGS_STANDARD }}${{ env.TAGS_SUPPLEMENTAL }}
@@ -116,7 +116,7 @@ jobs:
         id: meta_redhat
         uses: docker/metadata-action@v4.1.1
         with:
-          images: kong/kubernetes-ingress-controller
+          images: traines/kic
           flavor: |
             latest=false
           tags: ${{ env.REDHAT_STANDARD }}${{ env.REDHAT_SUPPLEMENTAL }}
@@ -286,12 +286,12 @@ jobs:
         body: |
           #### Download Kong Ingress Controller ${{ steps.semver_parser.outputs.fullversion }}:
 
-          - [Docker Image](https://hub.docker.com/repository/docker/kong/kubernetes-ingress-controller)
-          - [Get started](https://github.com/Kong/kubernetes-ingress-controller#get-started)
+          - [Docker Image](https://hub.docker.com/repository/docker/traines/kic)
+          - [Get started](https://github.com/traines/kic#get-started)
           
           #### Links:
           
-          - [Changelog](https://github.com/Kong/kubernetes-ingress-controller/blob/main/CHANGELOG.md#${{ steps.semver_parser.outputs.major }}${{ steps.semver_parser.outputs.minor }}${{ steps.semver_parser.outputs.patch }})
+          - [Changelog](https://github.com/traines/kic/blob/main/CHANGELOG.md#${{ steps.semver_parser.outputs.major }}${{ steps.semver_parser.outputs.minor }}${{ steps.semver_parser.outputs.patch }})
 
         token: ${{ secrets.GITHUB_TOKEN }}
         tag: ${{ github.event.inputs.tag }}
