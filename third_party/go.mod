@@ -6,7 +6,7 @@ require (
 	github.com/elastic/crd-ref-docs v0.0.8
 	github.com/golangci/golangci-lint v1.50.1
 	gotest.tools/gotestsum v1.8.2
-	k8s.io/code-generator v0.26.0
+	k8s.io/code-generator v0.26.1
 	sigs.k8s.io/controller-tools v0.10.0
 	sigs.k8s.io/kustomize/kustomize/v4 v4.5.7
 )
