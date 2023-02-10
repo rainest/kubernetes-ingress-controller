@@ -18,10 +18,7 @@ import (
 	"github.com/kong/kubernetes-testing-framework/pkg/clusters"
 	"github.com/kong/kubernetes-testing-framework/pkg/clusters/addons/istio"
 	"github.com/kong/kubernetes-testing-framework/pkg/clusters/addons/kong"
-	"github.com/kong/kubernetes-testing-framework/pkg/clusters/addons/metallb"
-	"github.com/kong/kubernetes-testing-framework/pkg/environments"
 	"github.com/kong/kubernetes-testing-framework/pkg/utils/kubernetes/generators"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -32,6 +29,7 @@ import (
 	kongv1 "github.com/kong/kubernetes-ingress-controller/v2/pkg/apis/configuration/v1"
 	"github.com/kong/kubernetes-ingress-controller/v2/pkg/clientset"
 	"github.com/kong/kubernetes-ingress-controller/v2/test"
+	"github.com/kong/kubernetes-ingress-controller/v2/test/internal/helpers"
 )
 
 var (
@@ -72,7 +70,6 @@ func TestIstioWithKongIngressGateway(t *testing.T) {
 	}
 
 	t.Log("configuring cluster addons for the testing environment")
-	metallbAddon := metallb.New()
 	kongBuilder := kong.NewBuilder().
 		WithControllerDisabled().
 		WithProxyAdminServiceTypeLoadBalancer()
@@ -91,15 +88,13 @@ func TestIstioWithKongIngressGateway(t *testing.T) {
 	istioAddon := istioBuilder.Build()
 
 	t.Log("deploying a testing environment and Kubernetes cluster with Istio enabled")
-	envBuilder := setBuilderKubernetesVersion(t,
-		environments.NewBuilder().WithAddons(metallbAddon, kongAddon, istioAddon), clusterVersionStr)
-	env, err := envBuilder.Build(ctx)
+	envBuilder, err := getEnvironmentBuilder(ctx)
+	require.NoError(t, err)
+	env, err := envBuilder.WithAddons(istioAddon, kongAddon).Build(ctx)
 	require.NoError(t, err)
 
-	t.Log("configuring cluster cleanup")
 	defer func() {
-		t.Logf("cleaning up istio test cluster %s", env.Cluster().Name())
-		assert.NoError(t, env.Cleanup(ctx))
+		helpers.TeardownCluster(ctx, t, env.Cluster())
 	}()
 
 	t.Log("waiting for test cluster to be ready")
@@ -165,7 +160,7 @@ func TestIstioWithKongIngressGateway(t *testing.T) {
 	appURL := fmt.Sprintf("%s/httpbin", proxyURL)
 	appStatusOKUrl := fmt.Sprintf("%s/status/200", appURL)
 	require.Eventually(t, func() bool {
-		resp, err := httpc.Get(appStatusOKUrl)
+		resp, err := helpers.DefaultHTTPClient().Get(appStatusOKUrl)
 		if err != nil {
 			return false
 		}
@@ -190,7 +185,7 @@ func TestIstioWithKongIngressGateway(t *testing.T) {
 	t.Logf("retrieving the Kiali workload metrics for deployment %s", deployment.Name)
 	respData := kialiWorkloads{}
 	require.Eventually(t, func() bool {
-		resp, err := httpc.Get(fmt.Sprintf("%s/namespaces/%s/apps/%s", kialiAPIUrl, namespace.Name, deployment.Name))
+		resp, err := helpers.DefaultHTTPClient().Get(fmt.Sprintf("%s/namespaces/%s/apps/%s", kialiAPIUrl, namespace.Name, deployment.Name))
 		if err != nil {
 			return false
 		}
@@ -215,7 +210,7 @@ func TestIstioWithKongIngressGateway(t *testing.T) {
 	var health *workloadHealth
 	var inboundHTTPRequests map[string]float64
 	require.Eventually(t, func() bool {
-		resp, err := httpc.Get(appStatusOKUrl)
+		resp, err := helpers.DefaultHTTPClient().Get(appStatusOKUrl)
 		if err != nil {
 			return false
 		}
@@ -298,7 +293,7 @@ func TestIstioWithKongIngressGateway(t *testing.T) {
 	t.Log("waiting for the rate-limiter plugin to be active")
 	var headers http.Header
 	require.Eventually(t, func() bool {
-		resp, err := httpc.Get(appStatusOKUrl)
+		resp, err := helpers.DefaultHTTPClient().Get(appStatusOKUrl)
 		if err != nil {
 			return false
 		}
@@ -321,7 +316,7 @@ func TestIstioWithKongIngressGateway(t *testing.T) {
 // verifyStatusForURL is a helper function which given a URL and a status code performs
 // a GET and verifies the status code returning an error if the result isn't as expected.
 func verifyStatusForURL(getURL string, statusCode int) error {
-	resp, err := httpc.Get(getURL)
+	resp, err := helpers.DefaultHTTPClient().Get(getURL)
 	if err != nil {
 		return err
 	}
@@ -345,7 +340,7 @@ func getKialiWorkloadHealth(t *testing.T, kialiAPIUrl string, namespace, workloa
 	req.URL.RawQuery = query.Encode()
 
 	// make the health metrics request
-	resp, err := httpc.Do(req)
+	resp, err := helpers.DefaultHTTPClient().Do(req)
 	if err != nil {
 		return nil, err
 	}

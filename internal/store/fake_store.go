@@ -39,7 +39,7 @@ type FakeObjects struct {
 	UDPRoutes                      []*gatewayv1alpha2.UDPRoute
 	TCPRoutes                      []*gatewayv1alpha2.TCPRoute
 	TLSRoutes                      []*gatewayv1alpha2.TLSRoute
-	ReferenceGrants                []*gatewayv1alpha2.ReferenceGrant
+	ReferenceGrants                []*gatewayv1beta1.ReferenceGrant
 	Gateways                       []*gatewayv1beta1.Gateway
 	TCPIngresses                   []*configurationv1beta1.TCPIngress
 	UDPIngresses                   []*configurationv1beta1.UDPIngress
@@ -220,13 +220,11 @@ func NewFakeStore(
 
 			KnativeIngress: knativeIngressStore,
 		},
-		ingressClass:                annotations.DefaultIngressClass,
-		isValidIngressClass:         annotations.IngressClassValidatorFuncFromObjectMeta(annotations.DefaultIngressClass),
-		isValidIngressV1Class:       annotations.IngressClassValidatorFuncFromV1Ingress(annotations.DefaultIngressClass),
-		ingressV1Beta1ClassMatching: annotations.ExactClassMatch,
-		ingressV1ClassMatching:      annotations.ExactClassMatch,
-		kongConsumerClassMatching:   annotations.ExactClassMatch,
-		logger:                      logrus.New(),
+		ingressClass:          annotations.DefaultIngressClass,
+		isValidIngressClass:   annotations.IngressClassValidatorFuncFromObjectMeta(annotations.DefaultIngressClass),
+		isValidIngressV1Class: annotations.IngressClassValidatorFuncFromV1Ingress(annotations.DefaultIngressClass),
+		ingressClassMatching:  annotations.ExactClassMatch,
+		logger:                logrus.New(),
 	}
 	return s, nil
 }

@@ -59,9 +59,11 @@ func setupControllers(
 	mgr manager.Manager,
 	dataplaneClient *dataplane.KongClient,
 	dataplaneAddressFinder *dataplane.AddressFinder,
+	udpDataplaneAddressFinder *dataplane.AddressFinder,
 	kubernetesStatusQueue *status.Queue,
 	c *Config,
 	featureGates map[string]bool,
+	kongAdminAPIEndpointsNotifier configuration.EndpointsNotifier,
 ) ([]ControllerDef, error) {
 	restMapper := mgr.GetClient().RESTMapper()
 
@@ -71,10 +73,10 @@ func setupControllers(
 		return nil, fmt.Errorf("ingress version picker failed: %w", err)
 	}
 
-	referenceGrantsEnabled := featureGates[gatewayAlphaFeature] && ShouldEnableCRDController(
+	referenceGrantsEnabled := featureGates[gatewayFeature] && ShouldEnableCRDController(
 		schema.GroupVersionResource{
-			Group:    gatewayv1alpha2.GroupVersion.Group,
-			Version:  gatewayv1alpha2.GroupVersion.Version,
+			Group:    gatewayv1beta1.GroupVersion.Group,
+			Version:  gatewayv1beta1.GroupVersion.Version,
 			Resource: "referencegrants",
 		},
 		restMapper,
@@ -83,6 +85,19 @@ func setupControllers(
 	referenceIndexers := ctrlref.NewCacheIndexers()
 
 	controllers := []ControllerDef{
+		// ---------------------------------------------------------------------------
+		// Kong Gateway Admin API Service discovery
+		// ---------------------------------------------------------------------------
+		{
+			Enabled: c.KongAdminSvc.Name != "",
+			Controller: &configuration.KongAdminAPIServiceReconciler{
+				Client:            mgr.GetClient(),
+				ServiceNN:         c.KongAdminSvc,
+				Log:               ctrl.Log.WithName("controllers").WithName("KongAdminAPIService"),
+				CacheSyncTimeout:  c.CacheSyncTimeout,
+				EndpointsNotifier: kongAdminAPIEndpointsNotifier,
+			},
+		},
 		// ---------------------------------------------------------------------------
 		// Core API Controllers
 		// ---------------------------------------------------------------------------
@@ -197,7 +212,7 @@ func setupControllers(
 				IngressClassName:           c.IngressClassName,
 				DisableIngressClassLookups: !c.IngressClassNetV1Enabled,
 				StatusQueue:                kubernetesStatusQueue,
-				DataplaneAddressFinder:     dataplaneAddressFinder,
+				DataplaneAddressFinder:     udpDataplaneAddressFinder,
 				CacheSyncTimeout:           c.CacheSyncTimeout,
 			},
 		},
@@ -360,7 +375,7 @@ func setupControllers(
 				Log:                  ctrl.Log.WithName("controllers").WithName(gatewayFeature),
 				Scheme:               mgr.GetScheme(),
 				DataplaneClient:      dataplaneClient,
-				PublishService:       c.PublishService,
+				PublishService:       c.PublishService.String(),
 				WatchNamespaces:      c.WatchNamespaces,
 				EnableReferenceGrant: referenceGrantsEnabled,
 				CacheSyncTimeout:     c.CacheSyncTimeout,

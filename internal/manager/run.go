@@ -6,26 +6,28 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"regexp"
+	"os"
 	"time"
 
-	"github.com/avast/retry-go/v4"
 	"github.com/blang/semver/v4"
-	"github.com/kong/go-kong/kong"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/runtime"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	knativev1alpha1 "knative.dev/networking/pkg/apis/networking/v1alpha1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
+	"github.com/kong/kubernetes-ingress-controller/v2/internal/adminapi"
 	"github.com/kong/kubernetes-ingress-controller/v2/internal/controllers/gateway"
 	"github.com/kong/kubernetes-ingress-controller/v2/internal/dataplane"
+	"github.com/kong/kubernetes-ingress-controller/v2/internal/dataplane/sendconfig"
+	"github.com/kong/kubernetes-ingress-controller/v2/internal/konnect"
 	"github.com/kong/kubernetes-ingress-controller/v2/internal/manager/metadata"
 	mgrutils "github.com/kong/kubernetes-ingress-controller/v2/internal/manager/utils"
+	"github.com/kong/kubernetes-ingress-controller/v2/internal/manager/utils/kongconfig"
 	"github.com/kong/kubernetes-ingress-controller/v2/internal/util"
 	"github.com/kong/kubernetes-ingress-controller/v2/internal/util/kubernetes/object/status"
 	"github.com/kong/kubernetes-ingress-controller/v2/internal/versions"
@@ -42,23 +44,12 @@ import (
 func Run(ctx context.Context, c *Config, diagnostic util.ConfigDumpDiagnostic, deprecatedLogger logrus.FieldLogger) error {
 	setupLog := ctrl.Log.WithName("setup")
 	setupLog.Info("starting controller manager", "release", metadata.Release, "repo", metadata.Repo, "commit", metadata.Commit)
-	setupLog.V(util.DebugLevel).Info("the ingress class name has been set", "value", c.IngressClassName)
-	setupLog.V(util.DebugLevel).Info("building the manager runtime scheme and loading apis into the scheme")
-	scheme := runtime.NewScheme()
-	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-	utilruntime.Must(konghqcomv1.AddToScheme(scheme))
-	utilruntime.Must(konghqcomv1alpha1.AddToScheme(scheme))
-	utilruntime.Must(configurationv1beta1.AddToScheme(scheme))
-	utilruntime.Must(knativev1alpha1.AddToScheme(scheme))
-	utilruntime.Must(gatewayv1alpha2.AddToScheme(scheme))
-	utilruntime.Must(gatewayv1beta1.AddToScheme(scheme))
+	setupLog.Info("the ingress class name has been set", "value", c.IngressClassName)
 
-	if c.EnableLeaderElection {
-		setupLog.V(0).Info("the --leader-elect flag is deprecated and no longer has any effect: leader election is set based on the Kong database setting")
-	}
+	gateway.SetControllerName(gatewayv1beta1.GatewayController(c.GatewayAPIControllerName))
 
 	setupLog.Info("getting enabled options and features")
-	featureGates, err := setupFeatureGates(setupLog, c)
+	featureGates, err := setupFeatureGates(setupLog, c.FeatureGates)
 	if err != nil {
 		return fmt.Errorf("failed to configure feature gates: %w", err)
 	}
@@ -68,64 +59,42 @@ func Run(ctx context.Context, c *Config, diagnostic util.ConfigDumpDiagnostic, d
 	if err != nil {
 		return fmt.Errorf("get kubeconfig from file %q: %w", c.KubeconfigPath, err)
 	}
-
 	setupLog.Info("getting the kong admin api client configuration")
-	adminClient, err := c.GetKongClient(ctx)
+	initialKongClients, err := c.getKongClients(ctx)
 	if err != nil {
-		return fmt.Errorf("unable to build kong api client: %w", err)
+		return fmt.Errorf("unable to build kong api client(s): %w", err)
 	}
 
-	var kongRoot map[string]interface{}
-	err = retry.Do(
-		func() error {
-			kongRoot, err = adminClient.Root(ctx)
-			// Abort if the provided context has been cancelled.
-			if errors.Is(err, context.Canceled) {
-				return retry.Unrecoverable(err)
-			}
-			return err
-		},
-		retry.Attempts(c.KongAdminInitializationRetries),
-		retry.Delay(c.KongAdminInitializationRetryDelay),
-		retry.DelayType(retry.FixedDelay),
-		retry.LastErrorOnly(true),
-		retry.OnRetry(func(n uint, err error) {
-			setupLog.Info("Retrying kong admin api client call after error",
-				"retries", fmt.Sprintf("%d/%d", n, c.KongAdminInitializationRetries),
-				"error", err.Error(),
-			)
-		}),
-	)
+	// -------------------------------------------------------------------------
 
+	// Get Kong configuration root(s) to validate them and extract Kong's version.
+	kongRoots, err := kongconfig.GetRoots(ctx, setupLog, c.KongAdminInitializationRetries, c.KongAdminInitializationRetryDelay, initialKongClients)
 	if err != nil {
-		return fmt.Errorf("could not retrieve Kong admin root: %w", err)
+		return fmt.Errorf("could not retrieve Kong admin root(s): %w", err)
 	}
 
-	kongConfig := setupKongConfig(ctx, adminClient, setupLog, c)
-	kongVersion, err := kong.ParseSemanticVersion(kong.VersionFromInfo(kongRoot))
+	dbMode, v, err := kongconfig.ValidateRoots(kongRoots, c.SkipCACertificates)
 	if err != nil {
-		setupLog.V(util.WarnLevel).Info("could not parse Kong version, version-specific behavior disabled", "error", err)
-	} else {
-		versions.SetKongVersion(semver.Version{Major: kongVersion.Major(), Minor: kongVersion.Minor(), Patch: kongVersion.Patch()})
+		return fmt.Errorf("could not validate Kong admin root(s) configuration: %w", err)
 	}
-	kongRootConfig, ok := kongRoot["configuration"].(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("invalid root configuration, expected a map[string]interface{} got %T",
-			kongRoot["configuration"])
+	semV := semver.Version{Major: v.Major(), Minor: v.Minor(), Patch: v.Patch()}
+	versions.SetKongVersion(semV)
+
+	kongConfig := sendconfig.Config{
+		Version:            semV,
+		InMemory:           (dbMode == "off") || (dbMode == ""),
+		Concurrency:        c.Concurrency,
+		FilterTags:         c.FilterTags,
+		SkipCACertificates: c.SkipCACertificates,
 	}
-	dbmode, ok := kongRootConfig["database"].(string)
-	if !ok {
-		return fmt.Errorf("invalid database configuration, expected a string got %T", kongRootConfig["database"])
-	}
-	if dbmode == "off" && c.SkipCACertificates {
-		return fmt.Errorf("--skip-ca-certificates is not available for use with DB-less Kong instances")
-	}
+	kongConfig.Init(ctx, setupLog, initialKongClients)
 
 	setupLog.Info("configuring and building the controller manager")
-	controllerOpts, err := setupControllerOptions(setupLog, c, scheme, dbmode)
+	controllerOpts, err := setupControllerOptions(setupLog, c, dbMode)
 	if err != nil {
 		return fmt.Errorf("unable to setup controller options: %w", err)
 	}
+
 	mgr, err := ctrl.NewManager(kubeconfig, controllerOpts)
 	if err != nil {
 		return fmt.Errorf("unable to start controller manager: %w", err)
@@ -137,29 +106,40 @@ func Run(ctx context.Context, c *Config, diagnostic util.ConfigDumpDiagnostic, d
 	}
 
 	setupLog.Info("Initializing Dataplane Client")
-	timeoutDuration, err := time.ParseDuration(fmt.Sprintf("%gs", c.ProxyTimeoutSeconds))
-	if err != nil {
-		return fmt.Errorf("%f is not a valid number of seconds to the timeout config for the kong client: %w", c.ProxyTimeoutSeconds, err)
-	}
-
 	eventRecorder := mgr.GetEventRecorderFor(KongClientEventRecorderComponentName)
-	dataplaneClient, err := dataplane.NewKongClient(
+
+	clientsManager, err := dataplane.NewAdminAPIClientsManager(
 		ctx,
 		deprecatedLogger,
-		timeoutDuration,
+		initialKongClients,
+		adminapi.NewClientFactoryForWorkspace(c.KongWorkspace, c.KongAdminAPIConfig, c.KongAdminToken),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create AdminAPIClientsManager: %w", err)
+	}
+	if c.KongAdminSvc.Name != "" {
+		setupLog.Info("Running AdminAPIClientsManager notify loop")
+		clientsManager.RunNotifyLoop()
+	}
+
+	dataplaneClient, err := dataplane.NewKongClient(
+		deprecatedLogger,
+		time.Duration(c.ProxyTimeoutSeconds*float32(time.Second)),
 		c.IngressClassName,
 		c.EnableReverseSync,
 		c.SkipCACertificates,
 		diagnostic,
 		kongConfig,
 		eventRecorder,
+		dbMode,
+		clientsManager,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to initialize kong data-plane client: %w", err)
 	}
 
 	setupLog.Info("Initializing Dataplane Synchronizer")
-	synchronizer, err := setupDataplaneSynchronizer(setupLog, deprecatedLogger, mgr, dataplaneClient, c)
+	synchronizer, err := setupDataplaneSynchronizer(setupLog, deprecatedLogger, mgr, dataplaneClient, c.ProxySyncSeconds)
 	if err != nil {
 		return fmt.Errorf("unable to initialize dataplane synchronizer: %w", err)
 	}
@@ -179,18 +159,14 @@ func Run(ctx context.Context, c *Config, diagnostic util.ConfigDumpDiagnostic, d
 	}
 
 	setupLog.Info("Initializing Dataplane Address Discovery")
-	dataplaneAddressFinder, err := setupDataplaneAddressFinder(ctx, mgr.GetClient(), c)
+	dataplaneAddressFinder, udpDataplaneAddressFinder, err := setupDataplaneAddressFinder(mgr.GetClient(), c, setupLog)
 	if err != nil {
 		return err
 	}
 
-	if !isControllerNameValid(c.GatewayAPIControllerName) {
-		return errors.New("--gateway-api-controller-name is invalid. The expected format is example.com/controller-name")
-	}
-	gateway.ControllerName = gatewayv1beta1.GatewayController(c.GatewayAPIControllerName)
-
 	setupLog.Info("Starting Enabled Controllers")
-	controllers, err := setupControllers(mgr, dataplaneClient, dataplaneAddressFinder, kubernetesStatusQueue, c, featureGates)
+	controllers, err := setupControllers(mgr, dataplaneClient,
+		dataplaneAddressFinder, udpDataplaneAddressFinder, kubernetesStatusQueue, c, featureGates, clientsManager)
 	if err != nil {
 		return fmt.Errorf("unable to setup controller as expected %w", err)
 	}
@@ -208,18 +184,36 @@ func Run(ctx context.Context, c *Config, diagnostic util.ConfigDumpDiagnostic, d
 	if err := mgr.AddHealthzCheck("health", healthz.Ping); err != nil {
 		return fmt.Errorf("unable to setup healthz: %w", err)
 	}
-	if err := mgr.AddReadyzCheck("check", func(_ *http.Request) error {
-		if !synchronizer.IsReady() {
-			return errors.New("synchronizer not yet configured")
-		}
-		return nil
-	}); err != nil {
+	if err := mgr.AddReadyzCheck("check", readyzHandler(mgr, synchronizer)); err != nil {
 		return fmt.Errorf("unable to setup readyz: %w", err)
+	}
+
+	if c.Konnect.ConfigSynchronizationEnabled {
+		setupLog.Info("Start Konnect client to register runtime instances to Konnect")
+		konnectClient, err := konnect.NewClient(c.Konnect)
+		if err != nil {
+			return fmt.Errorf("failed to create konnect client: %w", err)
+		}
+		hostname, _ := os.Hostname()
+		version := metadata.Release
+		agent := konnect.NewNodeAgent(hostname, version, setupLog, konnectClient)
+		agent.Run()
 	}
 
 	if c.AnonymousReports {
 		setupLog.Info("Starting anonymous reports")
-		if err := mgrutils.RunReport(ctx, kubeconfig, kongConfig, c.PublishService, metadata.Release, featureGates); err != nil {
+		// the argument checking the watch namespaces length enables or disables mesh detection. the mesh detect client
+		// attempts to use all namespaces and can't utilize a manager multi-namespaced cache, so if we need to limit
+		// namespace access we just disable mesh detection altogether.
+		if err := mgrutils.RunReport(
+			ctx,
+			kubeconfig,
+			c.PublishService.String(),
+			metadata.Release,
+			len(c.WatchNamespaces) == 0,
+			featureGates,
+			clientsManager,
+		); err != nil {
 			setupLog.Error(err, "anonymous reporting failed")
 		}
 	} else {
@@ -230,8 +224,50 @@ func Run(ctx context.Context, c *Config, diagnostic util.ConfigDumpDiagnostic, d
 	return mgr.Start(ctx)
 }
 
-func isControllerNameValid(controllerName string) bool {
-	// https://github.com/kubernetes-sigs/gateway-api/blob/547122f7f55ac0464685552898c560658fb40073/apis/v1beta1/shared_types.go#L448-L463
-	re := regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*\/[A-Za-z0-9\/\-._~%!$&'()*+,;=:]+$`)
-	return re.Match([]byte(controllerName))
+type IsReady interface {
+	IsReady() bool
+}
+
+func readyzHandler(mgr manager.Manager, dataplaneSynchronizer IsReady) func(*http.Request) error {
+	return func(_ *http.Request) error {
+		select {
+		// If we're elected as leader then report readiness based on the readiness
+		// of dataplane synchronizer.
+		case <-mgr.Elected():
+			if !dataplaneSynchronizer.IsReady() {
+				return errors.New("synchronizer not yet configured")
+			}
+		// If we're not the leader then just report as ready.
+		default:
+		}
+		return nil
+	}
+}
+
+func getScheme() (*runtime.Scheme, error) {
+	scheme := runtime.NewScheme()
+
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		return nil, err
+	}
+	if err := konghqcomv1.AddToScheme(scheme); err != nil {
+		return nil, err
+	}
+	if err := konghqcomv1alpha1.AddToScheme(scheme); err != nil {
+		return nil, err
+	}
+	if err := configurationv1beta1.AddToScheme(scheme); err != nil {
+		return nil, err
+	}
+	if err := knativev1alpha1.AddToScheme(scheme); err != nil {
+		return nil, err
+	}
+	if err := gatewayv1alpha2.Install(scheme); err != nil {
+		return nil, err
+	}
+	if err := gatewayv1beta1.Install(scheme); err != nil {
+		return nil, err
+	}
+
+	return scheme, nil
 }

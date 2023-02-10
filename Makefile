@@ -2,6 +2,7 @@
 # Configuration - Repository
 # ------------------------------------------------------------------------------
 
+MAKEFLAGS += --no-print-directory
 REPO_URL ?= github.com/kong/kubernetes-ingress-controller
 REPO_INFO ?= $(shell git config --get remote.origin.url)
 TAG ?= $(shell git describe --tags)
@@ -67,6 +68,29 @@ CRD_REF_DOCS = $(PROJECT_DIR)/bin/crd-ref-docs
 crd-ref-docs: ## Download crd-ref-docs locally if necessary.
 	@$(MAKE) _download_tool TOOL=crd-ref-docs
 
+DLV = $(PROJECT_DIR)/bin/dlv
+.PHONY: dlv
+dlv: ## Download dlv locally if necessary.
+	@$(MAKE) _download_tool TOOL=dlv
+
+SKAFFOLD = $(PROJECT_DIR)/bin/skaffold
+.PHONY: skaffold
+skaffold: ## Download skaffold locally if necessary.
+# NOTE: this step is not idempotent like other tool download steps because for
+# some reason skaffold doesn't want to be included in imports or installed via
+# go install:
+# go: github.com/GoogleContainerTools/skaffold@v2.0.4: invalid version: module contains a go.mod file, so module path must match major version ("github.com/GoogleContainerTools/skaffold/v2")
+ifeq ($(wildcard $(SKAFFOLD)),)
+	curl -Lo skaffold https://storage.googleapis.com/skaffold/releases/v2.1.0/skaffold-$(shell go env GOOS)-$(shell go env GOARCH)
+	@chmod +x skaffold
+	@mv skaffold ./bin/
+endif
+
+STATICCHECK = $(PROJECT_DIR)/bin/staticcheck
+.PHONY: staticcheck
+staticcheck.download: ## Download staticcheck locally if necessary.
+	@$(MAKE) _download_tool TOOL=staticcheck
+
 # ------------------------------------------------------------------------------
 # Build
 # ------------------------------------------------------------------------------
@@ -81,11 +105,36 @@ clean:
 	@rm -f coverage*.out
 
 .PHONY: build
-build: generate fmt vet lint
-	go build -a -o bin/manager -ldflags "-s -w \
-		-X $(REPO_URL)/v2/internal/metadata.Release=$(TAG) \
-		-X $(REPO_URL)/v2/internal/metadata.Commit=$(COMMIT) \
-		-X $(REPO_URL)/v2/internal/metadata.Repo=$(REPO_INFO)" internal/cmd/main.go
+build: generate fmt vet lint _build
+
+.PHONY: build.fips
+build.fips: generate fmt vet lint _build.fips
+
+.PHONY: _build
+_build:
+	$(MAKE) _build.template MAIN=./internal/cmd/main.go
+
+.PHONY: _build.fips
+_build.fips:
+	$(MAKE) _build.template MAIN=./internal/cmd/fips/main.go
+
+.PHONY: _build.template
+_build.template:
+	go build -o bin/manager -ldflags "-s -w \
+		-X $(REPO_URL)/v2/internal/manager/metadata.Release=$(TAG) \
+		-X $(REPO_URL)/v2/internal/manager/metadata.Commit=$(COMMIT) \
+		-X $(REPO_URL)/v2/internal/manager/metadata.Repo=$(REPO_INFO)" ${MAIN}
+
+.PHONY: _build.debug
+_build.debug:
+	$(MAKE) _build.template.debug MAIN=./internal/cmd/main.go
+
+.PHONY: _build.template.debug
+_build.template.debug:
+	go build -o bin/manager-debug -trimpath -gcflags=all="-N -l" -ldflags " \
+		-X $(REPO_URL)/v2/internal/manager/metadata.Release=$(TAG) \
+		-X $(REPO_URL)/v2/internal/manager/metadata.Commit=$(COMMIT) \
+		-X $(REPO_URL)/v2/internal/manager/metadata.Repo=$(REPO_INFO)" ${MAIN}
 
 .PHONY: fmt
 fmt:
@@ -96,8 +145,14 @@ vet:
 	go vet ./...
 
 .PHONY: lint
-lint: verify.tidy golangci-lint
+lint: verify.tidy golangci-lint staticcheck
 	$(GOLANGCI_LINT) run -v
+
+.PHONY: staticcheck
+staticcheck: staticcheck.download
+	$(STATICCHECK) -tags e2e_tests,integration_tests,istio_tests,conformance_tests \
+		-f stylish \
+		./...
 
 .PHONY: verify.tidy
 verify.tidy:
@@ -116,7 +171,7 @@ verify.versions:
 	./scripts/verify-versions.sh $(TAG)
 
 .PHONY: verify.manifests
-verify.manifests: verify.repo manifests manifests.single verify.diff
+verify.manifests: verify.repo manifests verify.diff
 
 .PHONY: verify.generators
 verify.generators: verify.repo generate verify.diff
@@ -200,10 +255,10 @@ container:
 		--build-arg REPO_INFO=${REPO_INFO} \
 		-t ${IMAGE}:${TAG} .
 
-.PHONY: container
-debug-container:
+.PHONY: container.debug
+container.debug:
 	docker buildx build \
-		-f Dockerfile \
+		-f Dockerfile.debug \
 		--target debug \
 		--build-arg TAG=${TAG}-debug \
 		--build-arg COMMIT=${COMMIT} \
@@ -216,7 +271,6 @@ debug-container:
 
 NCPU ?= $(shell getconf _NPROCESSORS_ONLN)
 PKG_LIST = ./pkg/...,./internal/...
-KIND_CLUSTER_NAME ?= "integration-tests"
 INTEGRATION_TEST_TIMEOUT ?= "45m"
 E2E_TEST_TIMEOUT ?= "45m"
 E2E_TEST_RUN ?= ""
@@ -237,7 +291,6 @@ test.conformance: gotestsum
 	$(GOTESTSUM) -- -race \
 		-timeout $(INTEGRATION_TEST_TIMEOUT) \
 		-parallel $(NCPU) \
-		-race \
 		./test/conformance
 
 .PHONY: test.integration
@@ -271,7 +324,7 @@ _check.container.environment:
 .PHONY: _test.integration
 _test.integration: _check.container.environment gotestsum
 	TEST_DATABASE_MODE="$(DBMODE)" \
-		GOFLAGS="-tags=integration_tests" \
+		GOFLAGS="-tags=$(GOTAGS)" \
 		KONG_CONTROLLER_FEATURE_GATES=$(KONG_CONTROLLER_FEATURE_GATES) \
 		GOTESTSUM_FORMAT=$(GOTESTSUM_FORMAT) \
 		$(GOTESTSUM) -- $(GOTESTFLAGS) \
@@ -283,28 +336,48 @@ _test.integration: _check.container.environment gotestsum
 		-coverprofile=$(COVERAGE_OUT) \
 		./test/integration
 
+.PHONY: test.integration.dbless.knative
+test.integration.dbless.knative:
+	@$(MAKE) _test.integration \
+		GOTAGS="integration_tests,knative" \
+		GOTESTFLAGS="-run TestKnative" \
+		DBMODE=off \
+		COVERAGE_OUT=coverage.dbless.knative.out
+
 .PHONY: test.integration.dbless
 test.integration.dbless:
 	@$(MAKE) _test.integration \
+		GOTAGS="integration_tests" \
 		DBMODE=off \
 		COVERAGE_OUT=coverage.dbless.out
 
 .PHONY: test.integration.dbless.pretty
 test.integration.dbless.pretty:
 	@$(MAKE) GOTESTSUM_FORMAT=pkgname _test.integration \
+		GOTAGS="integration_tests" \
 		DBMODE=off \
 		GOTESTFLAGS="-json" \
 		COVERAGE_OUT=coverage.dbless.out
 
+.PHONY: test.integration.postgres.knative
+test.integration.postgres.knative:
+	@$(MAKE) _test.integration \
+		GOTAGS="integration_tests,knative" \
+		GOTESTFLAGS="-run TestKnative" \
+		DBMODE=postgres \
+		COVERAGE_OUT=coverage.postgres.knative.out
+
 .PHONY: test.integration.postgres
 test.integration.postgres:
 	@$(MAKE) _test.integration \
+		GOTAGS="integration_tests" \
 		DBMODE=postgres \
 		COVERAGE_OUT=coverage.postgres.out
 
 .PHONY: test.integration.postgres.pretty
 test.integration.postgres.pretty:
 	@$(MAKE) GOTESTSUM_FORMAT=pkgname _test.integration \
+		GOTAGS="integration_tests" \
 		DBMODE=postgres \
 		GOTESTFLAGS="-json" \
 		COVERAGE_OUT=coverage.postgres.out
@@ -312,6 +385,7 @@ test.integration.postgres.pretty:
 .PHONY: test.integration.enterprise.postgres
 test.integration.enterprise.postgres:
 	@TEST_KONG_ENTERPRISE="true" \
+		GOTAGS="integration_tests" \
 		$(MAKE) _test.integration \
 		DBMODE=postgres \
 		COVERAGE_OUT=coverage.enterprisepostgres.out
@@ -319,47 +393,12 @@ test.integration.enterprise.postgres:
 .PHONY: test.integration.enterprise.postgres.pretty
 test.integration.enterprise.postgres.pretty:
 	@TEST_KONG_ENTERPRISE="true" \
+		GOTAGS="integration_tests" \
 		GOTESTSUM_FORMAT=pkgname \
 		$(MAKE) _test.integration \
 		DBMODE=postgres \
 		GOTESTFLAGS="-json" \
 		COVERAGE_OUT=coverage.enterprisepostgres.out
-
-.PHONY: test.integration.cp
-_test.integration.cp: gotestsum
-	CLUSTER_NAME="e2e-$(uuidgen)" \
-		KUBERNETES_CLUSTER_NAME="${CLUSTER_NAME}" go run hack/e2e/cluster/deploy/main.go \
-		GOFLAGS="-tags=integration_tests" \
-		KONG_TEST_CLUSTER="${CP}:${CLUSTER_NAME}" \
-		GOTESTSUM_FORMAT=$(GOTESTSUM_FORMAT) \
-		$(GOTESTSUM) -- -parallel "${NCPU}" -timeout $(INTEGRATION_TEST_TIMEOUT) \
-		./test/integration/... \
-    	go run hack/e2e/cluster/cleanup/main.go ${CLUSTER_NAME} \
-		trap cleanup EXIT SIGINT SIGQUIT
-
-.PHONY: test.integration.gke
-test.integration.gke:
-	@$(MAKE) _test.integration.cp \
-		CP="gke"
-
-.PHONY: test.integration.kind
-test.integration.kind:
-	@$(MAKE) _test.integration.cp \
-		CP="kind"
-
-.PHONY: test.e2e.gke
-test.e2e.gke:
-	CLUSTER_NAME="e2e-$(uuidgen)" \
-		KUBERNETES_CLUSTER_NAME="${CLUSTER_NAME}" go run hack/e2e/cluster/deploy/main.go \
-		KONG_TEST_CLUSTER="gke:${CLUSTER_NAME}" \
-		GOFLAGS="-tags=e2e_tests" $(GOTESTSUM) -- $(GOTESTFLAGS) \
-			-race \
-			-run $(E2E_TEST_RUN) \
-			-parallel $(NCPU) \
-			-timeout $(E2E_TEST_TIMEOUT) \
-			./test/e2e/... \
-		go run hack/e2e/cluster/cleanup/main.go ${CLUSTER_NAME} \
-		trap cleanup EXIT SIGINT SIGQUIT
 
 .PHONY: test.e2e
 test.e2e: gotestsum
@@ -413,6 +452,7 @@ test.istio: gotestsum
 KUBECONFIG ?= "${HOME}/.kube/config"
 KONG_NAMESPACE ?= kong-system
 KONG_PROXY_SERVICE ?= ingress-controller-kong-proxy
+KONG_PROXY_UDP_SERVICE ?= ingress-controller-kong-udp-proxy
 KONG_ADMIN_SERVICE ?= ingress-controller-kong-admin
 KONG_ADMIN_PORT ?= 8001
 KONG_ADMIN_URL ?= "http://$(shell kubectl -n $(KONG_NAMESPACE) get service $(KONG_ADMIN_SERVICE) -o=go-template='{{range .status.loadBalancer.ingress}}{{.ip}}{{end}}'):$(KONG_ADMIN_PORT)"
@@ -423,11 +463,69 @@ _ensure-namespace:
 
 .PHONY: debug
 debug: install _ensure-namespace
-	dlv debug ./internal/cmd/main.go -- \
+	$(DLV) debug ./internal/cmd/main.go -- \
+		--anonymous-reports=false \
 		--kong-admin-url $(KONG_ADMIN_URL) \
 		--publish-service $(KONG_NAMESPACE)/$(KONG_PROXY_SERVICE) \
+		--publish-service-udp $(KONG_NAMESPACE)/$(KONG_PROXY_UDP_SERVICE) \
 		--kubeconfig $(KUBECONFIG) \
 		--feature-gates=$(KONG_CONTROLLER_FEATURE_GATES)
+
+# By default dlv will look for a config in:
+# > If $XDG_CONFIG_HOME is set, then configuration and command history files are
+# > located in $XDG_CONFIG_HOME/dlv.
+# > Otherwise, they are located in $HOME/.config/dlv on Linux and $HOME/.dlv on other systems.
+#
+# ref: https://github.com/go-delve/delve/blob/master/Documentation/cli/README.md#configuration-and-command-history
+# 
+# This sets the XDG_CONFIG_HOME to this project's subdirectory so that project
+# specific substitution paths can be isolated to this project only and not shared
+# across projects under $HOME or common XDG_CONFIG_HOME.
+.PHONY: debug.connect
+debug.connect:
+	XDG_CONFIG_HOME="$(PROJECT_DIR)/.config" $(DLV) connect localhost:40000
+
+SKAFFOLD_DEBUG_PROFILE ?= debug
+
+# This will port-forward 40000 from KIC's debugger to localhost. Connect to that
+# port with debugger/IDE of your choice
+.PHONY: debug.skaffold
+debug.skaffold:
+	TAG=$(TAG)-debug REPO_INFO=$(REPO_INFO) COMMIT=$(COMMIT) \
+		CMD=debug \
+		SKAFFOLD_PROFILE=$(SKAFFOLD_DEBUG_PROFILE) \
+		$(MAKE) _skaffold
+
+# This will port-forward 40000 from KIC's debugger to localhost. Connect to that
+# port with debugger/IDE of your choice.
+#
+# To make it work with Konnect, you must provide following files under ./config/variants/konnect/debug:
+#   * `konnect.env` with CONTROLLER_KONNECT_RUNTIME_GROUP_ID env variable set
+#     to the UUID of a Runtime Group you have created in Konnect.
+#   * `tls.crt` and `tls.key` with TLS client cerificate and its key (generated by Konnect).
+.PHONY: debug.skaffold.konnect
+debug.skaffold.konnect:
+	SKAFFOLD_DEBUG_PROFILE=debug-konnect \
+		$(MAKE) debug.skaffold
+
+# This will port-forward 40000 from KIC's debugger to localhost. Connect to that
+# port with debugger/IDE of your choice
+.PHONY: debug.skaffold.sync
+debug.skaffold.sync:
+	$(MAKE) debug.skaffold SKAFFOLD_FLAGS="--auto-build --auto-deploy --auto-sync"
+
+SKAFFOLD_RUN_PROFILE ?= dev
+
+.PHONY: run.skaffold
+run.skaffold:
+	TAG=$(TAG) REPO_INFO=$(REPO_INFO) COMMIT=$(COMMIT) \
+		CMD=dev \
+		SKAFFOLD_PROFILE=$(SKAFFOLD_RUN_PROFILE) \
+		$(MAKE) _skaffold
+
+.PHONY: _skaffold
+_skaffold: skaffold
+	$(SKAFFOLD) $(CMD) --port-forward=pods --profile=$(SKAFFOLD_PROFILE) $(SKAFFOLD_FLAGS)
 
 .PHONY: run
 run: install _ensure-namespace
@@ -439,8 +537,10 @@ run: install _ensure-namespace
 .PHONY: _run
 _run:
 	go run ./internal/cmd/main.go \
+		--anonymous-reports=false \
 		--kong-admin-url $(KONG_ADMIN_URL) \
 		--publish-service $(KONG_NAMESPACE)/$(KONG_PROXY_SERVICE) \
+		--publish-service-udp $(KONG_NAMESPACE)/$(KONG_PROXY_UDP_SERVICE) \
 		--kubeconfig $(KUBECONFIG) \
 		--feature-gates=$(KONG_CONTROLLER_FEATURE_GATES)
 
