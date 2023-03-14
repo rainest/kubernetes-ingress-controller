@@ -122,6 +122,7 @@ jobs:
 
       - uses: Kong/kong-license@master
         id: license
+        continue-on-error: true # good enough for testing
         with:
           # todo: handle for forks
           password: ${{ secrets.PULP_PASSWORD }}
