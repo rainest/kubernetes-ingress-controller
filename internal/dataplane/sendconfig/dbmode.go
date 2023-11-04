@@ -5,11 +5,11 @@ import (
 	"fmt"
 
 	"github.com/blang/semver/v4"
-	"github.com/kong/deck/diff"
-	"github.com/kong/deck/dump"
-	"github.com/kong/deck/file"
-	"github.com/kong/deck/state"
-	deckutils "github.com/kong/deck/utils"
+	"github.com/rainest/decklib/pkg/diff"
+	"github.com/rainest/decklib/pkg/dump"
+	"github.com/rainest/decklib/pkg/file"
+	"github.com/rainest/decklib/pkg/state"
+	deckutils "github.com/rainest/decklib/pkg/utils"
 	"github.com/kong/go-kong/kong"
 
 	"github.com/kong/kubernetes-ingress-controller/v3/internal/dataplane/deckerrors"

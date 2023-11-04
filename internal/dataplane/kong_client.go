@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/kong/deck/file"
+	"github.com/rainest/decklib/pkg/file"
 	"github.com/kong/go-kong/kong"
 	"github.com/samber/lo"
 	"github.com/samber/mo"

@@ -1,7 +1,7 @@
 package sendconfig
 
 import (
-	"github.com/kong/deck/file"
+	"github.com/rainest/decklib/pkg/file"
 )
 
 // DBLessConfig is the configuration that is sent to Kong's data-plane via its `POST /config` endpoint after being

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/kong/deck/file"
+	"github.com/rainest/decklib/pkg/file"
 	"github.com/kong/go-kong/kong"
 	"github.com/stretchr/testify/require"
 

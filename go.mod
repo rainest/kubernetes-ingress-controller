@@ -1,6 +1,6 @@
 module github.com/kong/kubernetes-ingress-controller/v3
 
-go 1.21
+go 1.21.1
 
 // TODO: this is disabled by FOSSA action doesn't support go 1.21's toolchain clause:
 //
@@ -29,7 +29,6 @@ require (
 	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.4.0
 	github.com/jpillora/backoff v1.0.0
-	github.com/kong/deck v1.28.1
 	github.com/kong/go-kong v0.48.0
 	github.com/kong/kubernetes-telemetry v0.1.2
 	github.com/kong/kubernetes-testing-framework v0.41.1
@@ -41,6 +40,7 @@ require (
 	github.com/phayes/freeport v0.0.0-20220201140144-74d24b5ae9f5
 	github.com/prometheus/client_golang v1.17.0
 	github.com/prometheus/common v0.45.0
+	github.com/rainest/decklib v0.0.2
 	github.com/samber/lo v1.38.1
 	github.com/samber/mo v1.11.0
 	github.com/sethvargo/go-password v0.2.0
@@ -76,6 +76,7 @@ require (
 	github.com/google/s2a-go v0.1.7 // indirect
 	github.com/hashicorp/go-hclog v1.5.0 // indirect
 	github.com/klauspost/compress v1.17.0 // indirect
+	github.com/kong/deck v1.28.1 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/matttproud/golang_protobuf_extensions/v2 v2.0.0 // indirect
 	github.com/moby/patternmatcher v0.6.0 // indirect
@@ -174,7 +175,7 @@ require (
 	github.com/prometheus/client_model v0.5.0 // indirect
 	github.com/prometheus/procfs v0.12.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
-	github.com/shirou/gopsutil/v3 v3.23.9 // indirect
+	github.com/shirou/gopsutil/v3 v3.23.10 // indirect
 	github.com/shopspring/decimal v1.2.0 // indirect
 	github.com/sourcegraph/conc v0.3.0
 	github.com/spf13/cast v1.5.1 // indirect

@@ -1,6 +1,6 @@
 package util
 
-import "github.com/kong/deck/file"
+import "github.com/rainest/decklib/pkg/file"
 
 // ConfigDump contains a config dump and a flag indicating that the config was not successfully applid.
 type ConfigDump struct {

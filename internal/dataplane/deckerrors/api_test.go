@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"testing"
 
-	deckutils "github.com/kong/deck/utils"
+	deckutils "github.com/rainest/decklib/pkg/utils"
 	"github.com/kong/go-kong/kong"
 	"github.com/stretchr/testify/require"
 

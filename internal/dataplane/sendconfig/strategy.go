@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/go-logr/logr"
-	"github.com/kong/deck/dump"
-	"github.com/kong/deck/file"
+	"github.com/rainest/decklib/pkg/dump"
+	"github.com/rainest/decklib/pkg/file"
 	"github.com/kong/go-kong/kong"
 
 	"github.com/kong/kubernetes-ingress-controller/v3/internal/adminapi"
