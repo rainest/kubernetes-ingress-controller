@@ -61,6 +61,14 @@ func TranslateIngresses(
 		prependRegexPrefix := MaybePrependRegexPrefixForIngressV1Fn(ingress, icp.EnableLegacyRegexDetection)
 		index.Add(ingress, prependRegexPrefix)
 		translatedObjectsCollector.Add(ingress)
+		for _, protocol := range annotations.ExtractProtocolNames(ingress.ObjectMeta.Annotations) {
+			if !util.ValidateProtocol(protocol) {
+				failuresCollector.PushResourceFailure(
+					fmt.Sprintf("invalid %s value: %s", annotations.AnnotationPrefix+annotations.ProtocolsKey, protocol),
+					ingress,
+				)
+			}
+		}
 	}
 
 	return index.Translate()

@@ -9,6 +9,7 @@ import (
 	"github.com/samber/lo"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 
+	"github.com/kong/kubernetes-ingress-controller/v3/internal/annotations"
 	"github.com/kong/kubernetes-ingress-controller/v3/internal/dataplane/kongstate"
 	"github.com/kong/kubernetes-ingress-controller/v3/internal/dataplane/translator/subtranslator"
 	"github.com/kong/kubernetes-ingress-controller/v3/internal/gatewayapi"
@@ -98,6 +99,12 @@ func validateHTTPRoute(httproute *gatewayapi.HTTPRoute, featureFlags FeatureFlag
 	// at least try to provide a helpful message about the situation in the manager logs.
 	if len(spec.Rules) == 0 {
 		return subtranslator.ErrRouteValidationNoRules
+	}
+
+	for _, protocol := range annotations.ExtractProtocolNames(httproute.ObjectMeta.Annotations) {
+		if !util.ValidateProtocol(protocol) {
+			return fmt.Errorf("invalid %s value: %s", annotations.AnnotationPrefix+annotations.ProtocolsKey, protocol)
+		}
 	}
 
 	// Kong supports query parameter match only with expression router,
