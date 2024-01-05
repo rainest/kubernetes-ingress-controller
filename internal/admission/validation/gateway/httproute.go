@@ -6,14 +6,28 @@ import (
 	"strings"
 
 	"github.com/kong/go-kong/kong"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/kong/kubernetes-ingress-controller/v3/internal/admission/validation"
+	"github.com/kong/kubernetes-ingress-controller/v3/internal/annotations"
 	"github.com/kong/kubernetes-ingress-controller/v3/internal/dataplane/translator"
 	"github.com/kong/kubernetes-ingress-controller/v3/internal/dataplane/translator/subtranslator"
 	"github.com/kong/kubernetes-ingress-controller/v3/internal/gatewayapi"
+	"github.com/kong/kubernetes-ingress-controller/v3/internal/util"
 )
 
 type routeValidator interface {
 	Validate(context.Context, *kong.Route) (bool, string, error)
+}
+
+func validateRouteSourceAnnotations(obj client.Object) error {
+	protocols := annotations.ExtractProtocolNames(obj.GetAnnotations())
+	for _, protocol := range protocols {
+		if !util.ValidateProtocol(protocol) {
+			return fmt.Errorf("invalid %s value: %s", annotations.AnnotationPrefix+annotations.ProtocolKey, protocol)
+		}
+	}
+	return nil
 }
 
 // -----------------------------------------------------------------------------
@@ -37,8 +51,8 @@ func ValidateHTTPRoute(
 		return false, fmt.Sprintf("HTTPRoute spec did not pass validation: %s", err), nil
 	}
 
-	if err := validation.validateRouteSourceAnnotations(httproute); err != nil {
-		return false, fmt.Sprintf("HTTPRoute spec did not pass validation: %s", err), nil
+	if err := validation.ValidateRouteSourceAnnotations(httproute); err != nil {
+		return false, fmt.Sprintf("HTTPRoute has invalid Kong annotations: %s", err), nil
 	}
 
 	// perform Gateway validations for the HTTPRoute (e.g. listener validation, namespace validation, e.t.c.)

@@ -9,11 +9,11 @@ import (
 	"github.com/kong/kubernetes-ingress-controller/v3/internal/util"
 )
 
-func validateRouteSourceAnnotations(obj client.Object) error {
+func ValidateRouteSourceAnnotations(obj client.Object) error {
 	protocols := annotations.ExtractProtocolNames(obj.GetAnnotations())
 	for _, protocol := range protocols {
 		if !util.ValidateProtocol(protocol) {
-			return fmt.Errorf("invalid %s value: %s", annotations.AnnotationPrefix+annotations.ProtocolKey, protocol)
+			return fmt.Errorf("invalid %s value: %s", annotations.AnnotationPrefix+annotations.ProtocolsKey, protocol)
 		}
 	}
 	return nil
