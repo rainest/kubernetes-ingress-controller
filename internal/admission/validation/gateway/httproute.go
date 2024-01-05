@@ -37,6 +37,10 @@ func ValidateHTTPRoute(
 		return false, fmt.Sprintf("HTTPRoute spec did not pass validation: %s", err), nil
 	}
 
+	if err := validation.validateRouteSourceAnnotations(httproute); err != nil {
+		return false, fmt.Sprintf("HTTPRoute spec did not pass validation: %s", err), nil
+	}
+
 	// perform Gateway validations for the HTTPRoute (e.g. listener validation, namespace validation, e.t.c.)
 	for _, gateway := range attachedGateways {
 		// TODO: validate that the namespace is supported by the linked Gateway objects
