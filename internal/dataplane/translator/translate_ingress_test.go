@@ -153,6 +153,38 @@ func TestFromIngressV1(t *testing.T) {
 		require.Contains(t, result.ServiceNameToParent, "my-ns.svc.80")
 		assert.Equal(t, result.ServiceNameToParent["my-ns.svc.80"].GetName(), "baz")
 	})
+
+	t.Run("invalid protocol emits a failure Event", func(t *testing.T) {
+		s, err := store.NewFakeStore(store.FakeObjects{
+			IngressesV1: []*netv1.Ingress{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "baz",
+						Namespace: "foo-namespace",
+						Annotations: map[string]string{
+							annotations.IngressClassKey: annotations.DefaultIngressClass,
+							"konghq.com/protocols":      "ohno",
+						},
+					},
+					Spec: netv1.IngressSpec{
+						Rules: []netv1.IngressRule{
+							{
+								Host:             "example.com",
+								IngressRuleValue: netv1.IngressRuleValue{},
+							},
+						},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		p := mustNewTranslator(t, s)
+
+		p.ingressRulesFromIngressV1()
+
+		translationFailures := p.failuresCollector.PopResourceFailures()
+		require.NotEmpty(t, translationFailures)
+	})
 }
 
 func TestGetDefaultBackendService(t *testing.T) {
