@@ -128,7 +128,7 @@ func validateHTTPRoute(httproute *gatewayapi.HTTPRoute, featureFlags FeatureFlag
 // We need to split the HTTPRoutes into ones with only one hostname and one match, then assign priority to them
 // and finally translate the split HTTPRoutes into Kong services and routes with assigned priorities.
 func (t *Translator) ingressRulesFromHTTPRoutesUsingExpressionRoutes(httpRoutes []*gatewayapi.HTTPRoute, result *ingressRules) {
-	// first, split HTTPRoutes by hostnames and matches.
+	// split HTTPRoutes by hostnames and matches.
 	splitHTTPRouteMatches := []subtranslator.SplitHTTPRouteMatch{}
 	for _, httproute := range httpRoutes {
 		splitHTTPRouteMatches = append(splitHTTPRouteMatches, subtranslator.SplitHTTPRoute(httproute)...)
