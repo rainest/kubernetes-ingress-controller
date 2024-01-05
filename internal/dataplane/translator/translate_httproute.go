@@ -9,7 +9,6 @@ import (
 	"github.com/samber/lo"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 
-	"github.com/kong/kubernetes-ingress-controller/v3/internal/annotations"
 	"github.com/kong/kubernetes-ingress-controller/v3/internal/dataplane/kongstate"
 	"github.com/kong/kubernetes-ingress-controller/v3/internal/dataplane/translator/subtranslator"
 	"github.com/kong/kubernetes-ingress-controller/v3/internal/gatewayapi"
@@ -101,12 +100,6 @@ func validateHTTPRoute(httproute *gatewayapi.HTTPRoute, featureFlags FeatureFlag
 		return subtranslator.ErrRouteValidationNoRules
 	}
 
-	for _, protocol := range annotations.ExtractProtocolNames(httproute.ObjectMeta.Annotations) {
-		if !util.ValidateProtocol(protocol) {
-			return fmt.Errorf("invalid %s value: %s", annotations.AnnotationPrefix+annotations.ProtocolsKey, protocol)
-		}
-	}
-
 	// Kong supports query parameter match only with expression router,
 	// so we return error when query param match is specified and expression router is not enabled in the translator.
 	if !featureFlags.ExpressionRoutes {
@@ -128,7 +121,7 @@ func validateHTTPRoute(httproute *gatewayapi.HTTPRoute, featureFlags FeatureFlag
 // We need to split the HTTPRoutes into ones with only one hostname and one match, then assign priority to them
 // and finally translate the split HTTPRoutes into Kong services and routes with assigned priorities.
 func (t *Translator) ingressRulesFromHTTPRoutesUsingExpressionRoutes(httpRoutes []*gatewayapi.HTTPRoute, result *ingressRules) {
-	// split HTTPRoutes by hostnames and matches.
+	// first, split HTTPRoutes by hostnames and matches.
 	splitHTTPRouteMatches := []subtranslator.SplitHTTPRouteMatch{}
 	for _, httproute := range httpRoutes {
 		splitHTTPRouteMatches = append(splitHTTPRouteMatches, subtranslator.SplitHTTPRoute(httproute)...)

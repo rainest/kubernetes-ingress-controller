@@ -9,12 +9,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 
-	"github.com/kong/kubernetes-ingress-controller/v3/internal/annotations"
 	"github.com/kong/kubernetes-ingress-controller/v3/internal/dataplane/failures"
 	"github.com/kong/kubernetes-ingress-controller/v3/internal/dataplane/kongstate"
 	"github.com/kong/kubernetes-ingress-controller/v3/internal/dataplane/translator/atc"
 	"github.com/kong/kubernetes-ingress-controller/v3/internal/dataplane/translator/subtranslator"
-	"github.com/kong/kubernetes-ingress-controller/v3/internal/gatewayapi"
 	"github.com/kong/kubernetes-ingress-controller/v3/internal/manager/featuregates"
 	"github.com/kong/kubernetes-ingress-controller/v3/internal/store"
 	"github.com/kong/kubernetes-ingress-controller/v3/internal/util"
@@ -45,14 +43,6 @@ func (t *Translator) ingressRulesFromIngressV1() ingressRules {
 			allDefaultBackends = append(allDefaultBackends, *ingress)
 		}
 		result.SecretNameToSNIs.addFromIngressV1TLS(ingressSpec.TLS, ingress)
-		for _, protocol := range annotations.ExtractProtocolNames(ingress.ObjectMeta.Annotations) {
-			if !util.ValidateProtocol(protocol) {
-				t.failuresCollector.PushResourceFailure(
-					fmt.Sprintf("invalid %s value: %s", annotations.AnnotationPrefix+annotations.ProtocolsKey, protocol),
-					ingress,
-				)
-			}
-		}
 	}
 
 	// Translate Ingress objects into Kong Services.
@@ -91,38 +81,6 @@ func (t *Translator) ingressRulesFromIngressV1() ingressRules {
 	}
 
 	return result
-}
-
-func validateIngress(httproute *gatewayapi.HTTPRoute, featureFlags FeatureFlags) error {
-	spec := httproute.Spec
-
-	// validation for HTTPRoutes will happen at a higher layer, but in spite of that we run
-	// validation at this level as well as a fallback so that if routes are posted which
-	// are invalid somehow make it past validation (e.g. the webhook is not enabled) we can
-	// at least try to provide a helpful message about the situation in the manager logs.
-	if len(spec.Rules) == 0 {
-		return subtranslator.ErrRouteValidationNoRules
-	}
-
-	for _, protocol := range annotations.ExtractProtocolNames(httproute.ObjectMeta.Annotations) {
-		if !util.ValidateProtocol(protocol) {
-			return fmt.Errorf("invalid %s value: %s", annotations.AnnotationPrefix+annotations.ProtocolsKey, protocol)
-		}
-	}
-
-	// Kong supports query parameter match only with expression router,
-	// so we return error when query param match is specified and expression router is not enabled in the translator.
-	if !featureFlags.ExpressionRoutes {
-		for _, rule := range spec.Rules {
-			for _, match := range rule.Matches {
-				if len(match.QueryParams) > 0 {
-					return subtranslator.ErrRouteValidationQueryParamMatchesUnsupported
-				}
-			}
-		}
-	}
-
-	return nil
 }
 
 // getDefaultBackendService picks the oldest Ingress with a DefaultBackend defined and returns a Kong Service for it.

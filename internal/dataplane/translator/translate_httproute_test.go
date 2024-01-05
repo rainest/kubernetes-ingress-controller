@@ -1,7 +1,6 @@
 package translator
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/go-logr/zapr"
@@ -13,7 +12,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
@@ -35,12 +33,11 @@ var httprouteGVK = schema.GroupVersionKind{
 	Kind:    "HTTPRoute",
 }
 
-type testCaseIngressRulesFromHTTPRoute struct {
-	msg                                string
-	routes                             []*gatewayapi.HTTPRoute
-	expected                           func(routes []*gatewayapi.HTTPRoute) ingressRules
-	errs                               []error
-	expectedTranslationFailureMessages map[k8stypes.NamespacedName]string
+type testCaseIngressRulesFromHTTPRoutes struct {
+	msg      string
+	routes   []*gatewayapi.HTTPRoute
+	expected func(routes []*gatewayapi.HTTPRoute) ingressRules
+	errs     []error
 }
 
 func TestValidateHTTPRoute(t *testing.T) {
@@ -157,11 +154,11 @@ func TestValidateHTTPRoute(t *testing.T) {
 	}
 }
 
-func TestIngressRulesFromHTTPRoute(t *testing.T) {
+func TestIngressRulesFromHTTPRoutes(t *testing.T) {
 	fakestore, err := store.NewFakeStore(store.FakeObjects{})
 	require.NoError(t, err)
 
-	testCases := []testCaseIngressRulesFromHTTPRoute{
+	testCases := []testCaseIngressRulesFromHTTPRoutes{
 		{
 			msg: "an empty list of HTTPRoutes should produce no ingress rules",
 			expected: func(routes []*gatewayapi.HTTPRoute) ingressRules {
@@ -1380,114 +1377,6 @@ func TestIngressRulesFromHTTPRoute(t *testing.T) {
 			for i := range tt.errs {
 				assert.ErrorIs(t, errs[i], tt.errs[i])
 			}
-			if len(tt.expectedTranslationFailureMessages) > 0 {
-				translationFailures := p.failuresCollector.PopResourceFailures()
-				for nsName, expectedMessage := range tt.expectedTranslationFailureMessages {
-					relatedFailures := lo.Filter(translationFailures, func(f failures.ResourceFailure, _ int) bool {
-						for _, obj := range f.CausingObjects() {
-							if obj.GetNamespace() == nsName.Namespace && obj.GetName() == nsName.Name {
-								return true
-							}
-						}
-						return false
-					})
-
-					assert.Truef(t, lo.ContainsBy(relatedFailures, func(f failures.ResourceFailure) bool {
-						return strings.Contains(f.Message(), expectedMessage)
-					}), "should find expected translation failure caused by Service %s: should contain '%s'",
-						nsName.String(), expectedMessage)
-				}
-			}
-		})
-	}
-}
-
-// most translation tests for HTTPRoute use the single-resource TestIngressRulesFromHTTPRoute helper
-// TestIngressRulesFromHTTPRoutes tests cases that require the list translator, namely failure emission
-
-func TestIngressRulesFromHTTPRoutes(t *testing.T) {
-	testCases := []struct {
-		msg                                string
-		routes                             []*gatewayapi.HTTPRoute
-		expected                           func(routes []*gatewayapi.HTTPRoute) ingressRules
-		expectedTranslationFailureMessages map[k8stypes.NamespacedName]string
-	}{
-		{
-			msg: "a single HTTPRoute with invalid protocols results no Kong config and emits a failure Event",
-			routes: []*gatewayapi.HTTPRoute{{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "basic-httproute",
-					Namespace: corev1.NamespaceDefault,
-					Annotations: map[string]string{
-						"konghq.com/protocols": "kjdngjnfdg",
-					},
-				},
-				Spec: gatewayapi.HTTPRouteSpec{
-					CommonRouteSpec: commonRouteSpecMock("fake-gateway"),
-					Rules: []gatewayapi.HTTPRouteRule{{
-						Matches: []gatewayapi.HTTPRouteMatch{
-							builder.NewHTTPRouteMatch().WithPathPrefix("/httpbin").Build(),
-						},
-						BackendRefs: []gatewayapi.HTTPBackendRef{
-							builder.NewHTTPBackendRef("fake-service").WithPort(80).Build(),
-						},
-					}},
-				},
-			}},
-			expected: func(routes []*gatewayapi.HTTPRoute) ingressRules {
-				return ingressRules{
-					SecretNameToSNIs: SecretNameToSNIs{
-						secretToSNIs: map[string]*SNIs{},
-						seenHosts:    map[string]struct{}{},
-					},
-					ServiceNameToServices: map[string]kongstate.Service{},
-					ServiceNameToParent:   map[string]client.Object{},
-				}
-			},
-			expectedTranslationFailureMessages: map[k8stypes.NamespacedName]string{
-				{Namespace: "default", Name: "basic-httproute"}: "HTTPRoute can't be routed: invalid konghq.com/protocols value: kjdngjnfdg",
-			},
-		},
-	}
-
-	for _, tt := range testCases {
-		t.Run(tt.msg, func(t *testing.T) {
-			for _, httproute := range tt.routes {
-				// initialize the HTTPRoute object
-				httproute.SetGroupVersionKind(httprouteGVK)
-			}
-			fakestore, err := store.NewFakeStore(store.FakeObjects{
-				HTTPRoutes: tt.routes,
-			})
-			require.NoError(t, err)
-
-			p := mustNewTranslator(t, fakestore)
-
-			rules := p.ingressRulesFromHTTPRoutes()
-
-			// verify that we receive the expected values
-			expectedIngressRules := tt.expected(tt.routes)
-			assert.Equal(t, expectedIngressRules, rules)
-
-			// verify expected failures
-			if len(tt.expectedTranslationFailureMessages) > 0 {
-				translationFailures := p.failuresCollector.PopResourceFailures()
-				for nsName, expectedMessage := range tt.expectedTranslationFailureMessages {
-					relatedFailures := lo.Filter(translationFailures, func(f failures.ResourceFailure, _ int) bool {
-						for _, obj := range f.CausingObjects() {
-							if obj.GetNamespace() == nsName.Namespace && obj.GetName() == nsName.Name {
-								return true
-							}
-						}
-						return false
-					})
-
-					assert.Truef(t, lo.ContainsBy(relatedFailures, func(f failures.ResourceFailure) bool {
-						return strings.Contains(f.Message(), expectedMessage)
-					}), "should find expected translation failure caused by Service %s: should contain '%s'",
-						nsName.String(), expectedMessage)
-				}
-			}
 		})
 	}
 }
@@ -1546,7 +1435,7 @@ func TestIngressRulesFromHTTPRoutes_RegexPrefix(t *testing.T) {
 	translator := mustNewTranslator(t, fakestore)
 	translatorWithCombinedServiceRoutes := mustNewTranslator(t, fakestore)
 
-	for _, tt := range []testCaseIngressRulesFromHTTPRoute{
+	for _, tt := range []testCaseIngressRulesFromHTTPRoutes{
 		{
 			msg: "an HTTPRoute with regex path matches is supported",
 			routes: []*gatewayapi.HTTPRoute{{
@@ -1908,8 +1797,8 @@ func TestIngressRulesFromHTTPRoutesUsingExpressionRoutes(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			failuresCollector := failures.NewResourceFailuresCollector(zapr.NewLogger(zap.NewNop()))
-			translator.failuresCollector = failuresCollector
+			failureCollector := failures.NewResourceFailuresCollector(zapr.NewLogger(zap.NewNop()))
+			translator.failuresCollector = failureCollector
 
 			result := newIngressRules()
 			translator.ingressRulesFromHTTPRoutesUsingExpressionRoutes(tc.httpRoutes, &result)
